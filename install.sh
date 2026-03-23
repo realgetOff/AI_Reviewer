@@ -10,6 +10,15 @@ TEMP_DIR="/tmp/ai_reviewer_build"
 BIN_DIR="$HOME/bin"
 CONFIG_FILE="$HOME/.ai_config.json"
 echo -e "${BLUE}==> Preparing installation...${RESET}"
+if ! command -v curl &> /dev/null; then
+    echo -e "${RED}Error: curl is required but not installed.${RESET}"
+    echo -e "${YELLOW}==> Please install curl: apt install curl / brew install curl${RESET}"
+    exit 1
+fi
+if ! command -v git &> /dev/null; then
+    echo -e "${RED}Error: git is required but not installed.${RESET}"
+    exit 1
+fi
 rm -rf "$TEMP_DIR"
 git clone "$REPO_URL" "$TEMP_DIR" || { echo -e "${RED}Clone failed${RESET}"; exit 1; }
 cd "$TEMP_DIR"
@@ -22,6 +31,10 @@ if [ ! -f "includes/nlohmann/json.hpp" ]; then
     curl -L https://github.com/nlohmann/json/releases/latest/download/json.hpp \
          -o includes/nlohmann/json.hpp || { echo -e "${RED}Failed to download nlohmann/json${RESET}"; exit 1; }
     echo -e "${GREEN}==> nlohmann/json downloaded.${RESET}"
+fi
+if ! pkg-config --exists libcurl 2>/dev/null && ! ldconfig -p 2>/dev/null | grep -q libcurl; then
+    echo -e "${YELLOW}==> Warning: libcurl dev headers may be missing.${RESET}"
+    echo -e "${YELLOW}==> If compilation fails: apt install libcurl4-openssl-dev${RESET}"
 fi
 make re || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
 mkdir -p "$BIN_DIR"
