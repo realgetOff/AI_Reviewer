@@ -38,8 +38,8 @@ VERSION=$(grep "#define CURRENT_VERSION" includes/ai_client.hpp | cut -d'"' -f2)
 echo -e "${GREEN}==> air ${VERSION}${RESET}"
 
 echo -e "${BLUE}==> Compiling with meson...${RESET}"
-meson setup build || { echo -e "${RED}Meson setup failed${RESET}"; exit 1; }
-meson compile -C build || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
+meson setup build &> /dev/null || { echo -e "${RED}Meson setup failed${RESET}"; exit 1; }
+meson compile -C build &> /dev/null || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
 
 mkdir -p "$BIN_DIR"
 if [ -f "$BIN_DIR/ai_reviewer" ]; then
