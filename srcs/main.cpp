@@ -21,6 +21,8 @@ int	main(int argc, char **argv)
 	std::vector<std::future<std::string>>	futures;
 	int										opt;
 
+	check_update();
+
 	if (argc > 1)
 		if(check_commands(argv[1]) != 2)
 			return(0);
@@ -42,7 +44,6 @@ int	main(int argc, char **argv)
 		if (opt == 'd')
 			conf.debug = true;
 	}
-	check_update();
 	load_config(conf);
 	if (conf.api_key.empty() || optind >= argc)
 		display_help();
