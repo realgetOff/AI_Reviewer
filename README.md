@@ -38,8 +38,11 @@ air config
 | :--- | :--- |
 | `-s <style>` | Set review style (e.g., `minimal`, `security`…) |
 | `-l <lang>` | Set output language (`en`, `fr`) |
+| `-f <fmt>` | Set default format (`md`, `pdf`) |
+| `-t <sec>` | Set custom request timeout |
 | `-m` | List available AI models |
 | `-d` | Enable debug mode (verbose logs) |
+| `-g` | Analyze all files as one (global context mode) |
 | `-h` | Display help menu |
 
 ## Output
@@ -47,7 +50,8 @@ air config
 Output is saved in the `reports/` directory:
 
 ```
-reports/*.report.md
+reports/*.md
+reports/*.pdf
 reports/error.md
 reports/debug.log
 ```
