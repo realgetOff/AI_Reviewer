@@ -32,7 +32,7 @@ fi
 
 rm -rf "$TEMP_DIR"
 git clone "$REPO_URL" "$TEMP_DIR" || { echo -e "${RED}Clone failed${RESET}"; exit 1; }
-cd "$TEMP_DIR"
+pushd "$TEMP_DIR"
 
 VERSION=$(grep "#define CURRENT_VERSION" includes/ai_client.hpp | cut -d'"' -f2)
 echo -e "${GREEN}==> air ${VERSION}${RESET}"
@@ -42,12 +42,13 @@ meson setup build || { echo -e "${RED}Meson setup failed${RESET}"; exit 1; }
 meson compile -C build || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
 
 mkdir -p "$BIN_DIR"
-if [ -f "$BIN_DIR/air" ]; then
-    mv "$BIN_DIR/air" "$BIN_DIR/air.old"
+if [ -f "$BIN_DIR/ai_reviewer" ]; then
+    mv "$BIN_DIR/ai_reviewer" "$BIN_DIR/ai_reviewer.old"
 fi
-cp build/air "$BIN_DIR/"
-chmod +x "$BIN_DIR/air"
-rm -f "$BIN_DIR/air.old"
+cp build/ai_reviewer "$BIN_DIR/"
+chmod +x "$BIN_DIR/ai_reviewer"
+rm -f "$BIN_DIR/ai_reviewer.old"
+
 
 if [ ! -f "$CONFIG_FILE" ]; then
     if [ -f "config.json" ]; then

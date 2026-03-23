@@ -1,7 +1,7 @@
 project('AI_Reviewer', 'cpp', version : '1.0', meson_version : '>= 1.3.0', default_options : ['cpp_std=c++17'])
 
 dependencies = [
-  dependency('libcurl', static: true),
+  dependency('libcurl'),
   dependency('json', static: true),
 ]
 
