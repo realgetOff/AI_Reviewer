@@ -10,7 +10,9 @@ SRCS_DIR      = srcs
 OBJS_DIR      = objs
 
 SRCS          = $(SRCS_DIR)/main.cpp \
-                $(SRCS_DIR)/ai_client.cpp
+				$(SRCS_DIR)/ai_client.cpp \
+				$(SRCS_DIR)/update.cpp \
+				$(SRCS_DIR)/utils.cpp
 
 OBJS          = $(SRCS:$(SRCS_DIR)/%.cpp=$(OBJS_DIR)/%.o)
 

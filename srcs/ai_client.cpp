@@ -11,10 +11,6 @@
 /* ************************************************************************** */
 
 #include "ai_client.hpp"
-#include <curl/curl.h>
-#include <nlohmann/json.hpp>
-
-using json = nlohmann::json;
 
 size_t	write_cb(void *ptr, size_t size, size_t nmemb, void *data)
 {
