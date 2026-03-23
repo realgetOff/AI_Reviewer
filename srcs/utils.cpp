@@ -29,7 +29,7 @@ void	display_help(void)
 	std::cout << "\n" << BOLD << "OPTIONS:" << RESET << std::endl;
 	std::cout << "  -f <fmt>    Set default format (md, pdf) in config" << std::endl;
 	std::cout << "  -s <style>  Set review style (e.g., minimal, security)" << std::endl;
-	std::cout << "  -l <lang>   Set output language (en, fr, es, etc.)" << std::endl;
+	std::cout << "  -l <lang>   Set output language (en, fr)" << std::endl;
 	std::cout << "  -m          List all available AI models" << std::endl;
 	std::cout << "  -d          Enable debug mode (verbose logs)" << std::endl;
 	std::cout << "  -h          Show this help message" << std::endl;

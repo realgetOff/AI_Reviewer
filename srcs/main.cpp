@@ -49,6 +49,7 @@ int	main(int argc, char **argv)
 			{
 				update_config_file("format", new_fmt);
 				std::cout << GREEN << "Default format updated to: " << new_fmt << RESET << std::endl;
+				return (0);
 			}
 			else
 			{
