@@ -9,7 +9,9 @@ REPO_URL="https://github.com/realgetOff/AI_Reviewer.git"
 TEMP_DIR="/tmp/ai_reviewer_build"
 BIN_DIR="$HOME/bin"
 CONFIG_FILE="$HOME/.ai_config.json"
+
 echo -e "${BLUE}==> Preparing installation...${RESET}"
+
 if ! command -v curl &> /dev/null; then
     echo -e "${RED}Error: curl is required but not installed.${RESET}"
     echo -e "${YELLOW}==> Please install curl: apt install curl / brew install curl${RESET}"
@@ -19,31 +21,34 @@ if ! command -v git &> /dev/null; then
     echo -e "${RED}Error: git is required but not installed.${RESET}"
     exit 1
 fi
+if ! command -v meson &> /dev/null; then
+    echo -e "${BLUE}==> Installing meson via pip...${RESET}"
+    pip install meson --user || { echo -e "${RED}Failed to install meson${RESET}"; exit 1; }
+fi
+if ! command -v ninja &> /dev/null; then
+    echo -e "${BLUE}==> Installing ninja via pip...${RESET}"
+    pip install ninja --user || { echo -e "${RED}Failed to install ninja${RESET}"; exit 1; }
+fi
+
 rm -rf "$TEMP_DIR"
 git clone "$REPO_URL" "$TEMP_DIR" || { echo -e "${RED}Clone failed${RESET}"; exit 1; }
 cd "$TEMP_DIR"
+
 VERSION=$(grep "#define CURRENT_VERSION" includes/ai_client.hpp | cut -d'"' -f2)
 echo -e "${GREEN}==> air ${VERSION}${RESET}"
-echo -e "${BLUE}==> Compiling source code...${RESET}"
-if [ ! -f "includes/nlohmann/json.hpp" ]; then
-    echo -e "${BLUE}==> Downloading nlohmann/json...${RESET}"
-    mkdir -p includes/nlohmann
-    curl -L https://github.com/nlohmann/json/releases/latest/download/json.hpp \
-         -o includes/nlohmann/json.hpp || { echo -e "${RED}Failed to download nlohmann/json${RESET}"; exit 1; }
-    echo -e "${GREEN}==> nlohmann/json downloaded.${RESET}"
-fi
-if ! pkg-config --exists libcurl 2>/dev/null && ! ldconfig -p 2>/dev/null | grep -q libcurl; then
-    echo -e "${YELLOW}==> Warning: libcurl dev headers may be missing.${RESET}"
-    echo -e "${YELLOW}==> If compilation fails: apt install libcurl4-openssl-dev${RESET}"
-fi
-make re || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
+
+echo -e "${BLUE}==> Compiling with meson...${RESET}"
+meson setup build || { echo -e "${RED}Meson setup failed${RESET}"; exit 1; }
+meson compile -C build || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
+
 mkdir -p "$BIN_DIR"
-if [ -f "$BIN_DIR/ai_reviewer" ]; then
-    mv "$BIN_DIR/ai_reviewer" "$BIN_DIR/ai_reviewer.old"
+if [ -f "$BIN_DIR/air" ]; then
+    mv "$BIN_DIR/air" "$BIN_DIR/air.old"
 fi
-cp ai_reviewer "$BIN_DIR/"
-chmod +x "$BIN_DIR/ai_reviewer"
-rm -f "$BIN_DIR/ai_reviewer.old"
+cp build/air "$BIN_DIR/"
+chmod +x "$BIN_DIR/air"
+rm -f "$BIN_DIR/air.old"
+
 if [ ! -f "$CONFIG_FILE" ]; then
     if [ -f "config.json" ]; then
         cp config.json "$CONFIG_FILE"
@@ -54,6 +59,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 else
     echo -e "${YELLOW}==> Global config already exists. Keeping your current settings.${RESET}"
 fi
+
 if [[ "$SHELL" == */zsh ]]; then
     SHELL_RC="$HOME/.zshrc"
 elif [[ "$SHELL" == */bash ]]; then
@@ -61,6 +67,7 @@ elif [[ "$SHELL" == */bash ]]; then
 else
     SHELL_RC="$HOME/.profile"
 fi
+
 echo -e "${BLUE}==> Updating $SHELL_RC...${RESET}"
 if ! grep -q "$BIN_DIR" "$SHELL_RC"; then
     echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$SHELL_RC"
@@ -70,6 +77,7 @@ if ! grep -q "alias air=" "$SHELL_RC"; then
     echo "alias air='ai_reviewer'" >> "$SHELL_RC"
     echo -e "${GREEN}==> Alias 'air' added successfully!${RESET}"
 fi
+
 if ! command -v pandoc &> /dev/null; then
     echo -e "${BLUE}==> Installing Pandoc (portable version)...${RESET}"
     curl -L "$PANDOC_URL" -o /tmp/pandoc.tar.gz
@@ -81,6 +89,7 @@ fi
 if ! command -v wkhtmltopdf &> /dev/null; then
     echo -e "${BLUE}==> Tip: For better PDF quality, install wkhtmltopdf if possible.${RESET}"
 fi
+
 rm -rf "$TEMP_DIR"
 echo -e "\n${GREEN}Installation complete!${RESET}"
 echo -e "1. Refresh your terminal: ${BLUE}source $SHELL_RC${RESET}"
