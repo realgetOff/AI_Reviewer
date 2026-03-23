@@ -6,7 +6,7 @@ RED="\033[1;31m"
 RESET="\033[0m"
 PANDOC_URL="https://github.com/jgm/pandoc/releases/download/3.1.11/pandoc-3.1.11-linux-amd64.tar.gz"
 REPO_URL="https://github.com/realgetOff/AI_Reviewer.git"
-TEMP_DIR="/tmp/ai_reviewer_build"
+CACHE_DIR="$HOME/.cache/ai_reviewer"
 BIN_DIR="$HOME/bin"
 CONFIG_FILE="$HOME/.ai_config.json"
 
@@ -30,25 +30,42 @@ if ! command -v ninja &> /dev/null; then
     pip install ninja --user || { echo -e "${RED}Failed to install ninja${RESET}"; exit 1; }
 fi
 
-rm -rf "$TEMP_DIR"
-git clone "$REPO_URL" "$TEMP_DIR" || { echo -e "${RED}Clone failed${RESET}"; exit 1; }
-pushd "$TEMP_DIR"
+if [ -d "$CACHE_DIR/.git" ]; then
+    echo -e "${BLUE}==> Updating existing cache...${RESET}"
+    pushd "$CACHE_DIR" > /dev/null
+    git fetch origin || { echo -e "${RED}Fetch failed${RESET}"; exit 1; }
+    git reset --hard origin/main || { echo -e "${RED}Reset failed${RESET}"; exit 1; }
+else
+    echo -e "${BLUE}==> Cloning repository...${RESET}"
+    mkdir -p "$CACHE_DIR"
+    git clone "$REPO_URL" "$CACHE_DIR" || { echo -e "${RED}Clone failed${RESET}"; exit 1; }
+    pushd "$CACHE_DIR" > /dev/null
+fi
 
 VERSION=$(grep "#define CURRENT_VERSION" includes/ai_client.hpp | cut -d'"' -f2)
-echo -e "${GREEN}==> air ${VERSION}${RESET}"
+echo -e "${GREEN}==> ai_reviewer ${VERSION}${RESET}"
 
 echo -e "${BLUE}==> Compiling with meson...${RESET}"
-meson setup build &> /dev/null || { echo -e "${RED}Meson setup failed${RESET}"; exit 1; }
+if [ ! -d "build" ]; then
+    meson setup build --prefix="$HOME/.local" --bindir="$BIN_DIR" &> /dev/null \
+        || { echo -e "${RED}Meson setup failed${RESET}"; exit 1; }
+else
+    meson setup --reconfigure build --prefix="$HOME/.local" --bindir="$BIN_DIR" &> /dev/null \
+        || { echo -e "${RED}Meson reconfigure failed${RESET}"; exit 1; }
+fi
+
 meson compile -C build &> /dev/null || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
 
 mkdir -p "$BIN_DIR"
 if [ -f "$BIN_DIR/ai_reviewer" ]; then
     mv "$BIN_DIR/ai_reviewer" "$BIN_DIR/ai_reviewer.old"
 fi
-cp build/ai_reviewer "$BIN_DIR/"
+
+ninja install -C build &> /dev/null || {
+    cp build/ai_reviewer "$BIN_DIR/" || { echo -e "${RED}Install failed${RESET}"; exit 1; }
+}
 chmod +x "$BIN_DIR/ai_reviewer"
 rm -f "$BIN_DIR/ai_reviewer.old"
-
 
 if [ ! -f "$CONFIG_FILE" ]; then
     if [ -f "config.json" ]; then
@@ -60,6 +77,8 @@ if [ ! -f "$CONFIG_FILE" ]; then
 else
     echo -e "${YELLOW}==> Global config already exists. Keeping your current settings.${RESET}"
 fi
+
+popd > /dev/null
 
 if [[ "$SHELL" == */zsh ]]; then
     SHELL_RC="$HOME/.zshrc"
@@ -91,7 +110,6 @@ if ! command -v wkhtmltopdf &> /dev/null; then
     echo -e "${BLUE}==> Tip: For better PDF quality, install wkhtmltopdf if possible.${RESET}"
 fi
 
-rm -rf "$TEMP_DIR"
 echo -e "\n${GREEN}Installation complete!${RESET}"
 echo -e "1. Refresh your terminal: ${BLUE}source $SHELL_RC${RESET}"
 echo -e "2. Set your API key: ${BLUE}air config${RESET}"
