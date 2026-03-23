@@ -13,7 +13,7 @@
 #ifndef AI_CLIENT_HPP
 #define AI_CLIENT_HPP
 
-#define CURRENT_VERSION "v1.1.2"
+#define CURRENT_VERSION "v1.1.3"
 
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
