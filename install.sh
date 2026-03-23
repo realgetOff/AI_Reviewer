@@ -27,6 +27,7 @@ fi
     cp ai_reviewer "$BIN_DIR/"
     rm -f "$BIN_DIR/ai_reviewer.old"
     echo -e "${GREEN}==> Default config created at ~/.ai_config.json${RESET}"
+    echo -e "${GREEN} Check if new [DEBUG${RESET}"
 else
     echo -e "${YELLOW}==> Global config already exists. Skipping...${RESET}"
 fi
