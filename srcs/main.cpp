@@ -22,7 +22,8 @@ int	main(int argc, char **argv)
 	int										opt;
 
 	if (argc > 1)
-		check_commands(argv[1]);
+		if(check_commands(argv[1]) != 2)
+			return(0);
 
 	while ((opt = getopt(argc, argv, "dhms:l:")) != -1)
 	{
