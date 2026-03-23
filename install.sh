@@ -3,32 +3,40 @@
 GREEN="\033[1;92m"
 BLUE="\033[1;34m"
 YELLOW="\033[1;33m"
+RED="\033[1;31m"
 RESET="\033[0m"
 
 REPO_URL="https://github.com/realgetOff/AI_Reviewer.git"
 TEMP_DIR="/tmp/ai_reviewer_build"
 BIN_DIR="$HOME/bin"
+CONFIG_FILE="$HOME/.ai_config.json"
 
 echo -e "${BLUE}==> Preparing installation...${RESET}"
 rm -rf "$TEMP_DIR"
-git clone "$REPO_URL" "$TEMP_DIR" && cd "$TEMP_DIR"
+git clone "$REPO_URL" "$TEMP_DIR" || { echo -e "${RED}Clone failed${RESET}"; exit 1; }
+cd "$TEMP_DIR"
 
 echo -e "${BLUE}==> Compiling source code...${RESET}"
-make re
+make re || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
 
 mkdir -p "$BIN_DIR"
-cp ai_reviewer "$BIN_DIR/"
-chmod +x "$BIN_DIR/ai_reviewer"
 
-if [ ! -f "$HOME/.ai_config.json" ]; then
 if [ -f "$BIN_DIR/ai_reviewer" ]; then
     mv "$BIN_DIR/ai_reviewer" "$BIN_DIR/ai_reviewer.old"
 fi
-    cp ai_reviewer "$BIN_DIR/"
-    rm -f "$BIN_DIR/ai_reviewer.old"
-    echo -e "${GREEN}==> Default config created at ~/.ai_config.json${RESET}"
+cp ai_reviewer "$BIN_DIR/"
+chmod +x "$BIN_DIR/ai_reviewer"
+rm -f "$BIN_DIR/ai_reviewer.old"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    if [ -f "config.json" ]; then
+        cp config.json "$CONFIG_FILE"
+        echo -e "${GREEN}==> Default config created at $CONFIG_FILE${RESET}"
+    else
+        echo -e "${YELLOW}==> Warning: config.json not found in repo.${RESET}"
+    fi
 else
-    echo -e "${YELLOW}==> Global config already exists. Skipping...${RESET}"
+    echo -e "${YELLOW}==> Global config already exists. Keeping your current settings.${RESET}"
 fi
 
 if [[ "$SHELL" == */zsh ]]; then
@@ -41,7 +49,7 @@ fi
 
 echo -e "${BLUE}==> Updating $SHELL_RC...${RESET}"
 
-if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+if ! grep -q "$BIN_DIR" "$SHELL_RC"; then
     echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$SHELL_RC"
     echo -e "${GREEN}==> Added $BIN_DIR to PATH.${RESET}"
 fi
@@ -54,6 +62,5 @@ fi
 rm -rf "$TEMP_DIR"
 
 echo -e "\n${GREEN}Installation complete!${RESET}"
-echo -e "1. Refresh your terminal or run: ${BLUE}source $SHELL_RC${RESET}"
-echo -e "2. Set your API key with: ${BLUE}air config${RESET}"
-echo -e "3. Run an analysis with: ${BLUE}air .${RESET}"
+echo -e "1. Refresh your terminal: ${BLUE}source $SHELL_RC${RESET}"
+echo -e "2. Set your API key: ${BLUE}air config${RESET}"
