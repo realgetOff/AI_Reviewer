@@ -204,7 +204,7 @@ int check_commands(std::string command)
 			std::cout << GREEN << "Update successful!" << RESET << std::endl;
 		else
 			std::cout << RED << "Update failed." << RESET << std::endl;
-		return (ret);
+		return (1);
 	}
 	return(2);
 }

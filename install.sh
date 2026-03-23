@@ -10,7 +10,9 @@ REPO_URL="https://github.com/realgetOff/AI_Reviewer.git"
 TEMP_DIR="/tmp/ai_reviewer_build"
 BIN_DIR="$HOME/bin"
 CONFIG_FILE="$HOME/.ai_config.json"
+VERSION=$(grep "#define CURRENT_VERSION" includes/ai_client.hpp | cut -d'"' -f2)
 
+echo -e "${GREEN}==> air v${VERSION}${RESET}"
 echo -e "${BLUE}==> Preparing installation...${RESET}"
 rm -rf "$TEMP_DIR"
 git clone "$REPO_URL" "$TEMP_DIR" || { echo -e "${RED}Clone failed${RESET}"; exit 1; }
