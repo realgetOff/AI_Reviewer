@@ -27,6 +27,7 @@ int	main(int argc, char **argv)
 		if(check_commands(argv[1]) != 2)
 			return(0);
 
+	std::cout << "Hello nice update" << std::endl;
 	while ((opt = getopt(argc, argv, "dhms:l:")) != -1)
 	{
 		if (opt == 'h')
