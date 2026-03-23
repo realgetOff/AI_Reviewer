@@ -16,7 +16,7 @@ includes = [
   include_directories('includes')
 ]
 
-executable('air',
+executable('ai_reviewer',
   sources,
   dependencies : dependencies,
   include_directories : includes,
