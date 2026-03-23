@@ -165,9 +165,7 @@ int check_commands(std::string command)
 		if (!home)
 			return (1);
 		std::string path = std::string(home) + "/.ai_config.json";
-		std::string editor = getenv("EDITOR");
-		if(!getenv("EDITOR"))
-			editor = "vim";
+		std::string editor = "vim";
 		std::string cmd = editor + " " + path;
 		return (system(cmd.c_str()));
 	}
