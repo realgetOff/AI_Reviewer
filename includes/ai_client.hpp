@@ -53,6 +53,7 @@ struct s_config
 	std::string model_type;
 	std::string model_name;
 	std::string format;
+	int timeout;
 };
 
 void		check_update(void);

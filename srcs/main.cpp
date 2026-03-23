@@ -14,7 +14,7 @@
 
 int	main(int argc, char **argv)
 {
-	s_config								conf = {false, true, "", "", "", "", "", "", "gemini", "md"};
+	s_config								conf = {false, true, "", "", "", "", "", "", "gemini", "md", 0};
 	std::vector<std::string>				files;
 	std::vector<std::string>				results;
 	std::vector<std::future<std::string>>	futures;
@@ -26,7 +26,7 @@ int	main(int argc, char **argv)
 		if(check_commands(argv[1]) != 2)
 			return(0);
 
-	while ((opt = getopt(argc, argv, "dhms:l:f:")) != -1)
+	while ((opt = getopt(argc, argv, "t:dhms:l:f:")) != -1)
 	{
 		if (opt == 'h')
 			display_help();
@@ -35,6 +35,15 @@ int	main(int argc, char **argv)
 			load_config(conf);
 			list_provider_models(conf);
 			return (0);
+		}
+		if (opt == 't')
+		{
+    		conf.timeout = std::atoi(optarg);
+   			if (conf.timeout <= 0)
+   		 	{
+    			std::cerr << RED << "Error: timeout must be > 0" << RESET << std::endl;
+    		    return (1);
+    		}
 		}
 		if (opt == 's')
 			conf.style = optarg;

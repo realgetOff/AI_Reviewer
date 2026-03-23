@@ -32,6 +32,7 @@ void	display_help(void)
 	std::cout << "  -l <lang>   Set output language (en, fr)" << std::endl;
 	std::cout << "  -m          List all available AI models" << std::endl;
 	std::cout << "  -d          Enable debug mode (verbose logs)" << std::endl;
+	std::cout << "  -t <sec>    Set request timeout in seconds (default: 30)" << std::endl;
 	std::cout << "  -h          Show this help message" << std::endl;
 
 	std::cout << "\n" << BOLD << "EXAMPLES:" << RESET << std::endl;
@@ -130,6 +131,8 @@ void	load_config(s_config &conf)
 	try
 	{
 		j = json::parse(f);
+		if (conf.timeout == 0)
+    		conf.timeout = j.value("default_timeout", 30);
 		conf.api_key = j.value("api_key", "");
 		conf.api_url = j.value("api_url", "");
 		conf.model_type = j.value("model_type", "gemini");

@@ -2,6 +2,7 @@
   "api_key": "copy-your-gemini-api-key-here",
   "api_url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
   "default_format":"md",
+  "default_timeout":30,
   "model_type": "gemini",
   "model_name": "",
   "default_style": "minimal",
