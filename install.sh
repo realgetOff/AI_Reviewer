@@ -21,7 +21,8 @@ cp ai_reviewer "$BIN_DIR/"
 chmod +x "$BIN_DIR/ai_reviewer"
 
 if [ ! -f "$HOME/.ai_config.json" ]; then
-    cp config.json "$HOME/.ai_config.json"
+    rm -f "$BIN_DIR/ai_reviewer"
+    cp ai_reviewer "$BIN_DIR/"
     echo -e "${GREEN}==> Default config created at ~/.ai_config.json${RESET}"
 else
     echo -e "${YELLOW}==> Global config already exists. Skipping...${RESET}"
