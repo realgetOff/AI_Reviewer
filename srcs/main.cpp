@@ -296,7 +296,7 @@ int	main(int argc, char **argv)
 	if (argc > 1 && std::string(argv[1]) == "-update")
 		{
 		std::cout << BLUE << "Checking for updates..." << RESET << std::endl;
-		int ret = system("curl -sSL https://raw.githubusercontent.com/realgetOff/AI_Reviewer/main/install.sh | bash");
+		int ret = system("curl -sSL https://raw.githubusercontent.com/realgetOff/AI_Reviewer/main/install.sh?t=$(date +%s) | bash");
 		if (ret == 0)
 			std::cout << GREEN << "Update successful!" << RESET << std::endl;
 		else
