@@ -21,12 +21,13 @@ void	display_help(void)
 	std::cout << "  " << p << " <command>" << std::endl;
 
 	std::cout << "\n" << BOLD << "COMMANDS:" << RESET << std::endl;
-	std::cout << "  config     " << RESET << "Open global configuration file" << std::endl;
-	std::cout << "  -update    " << RESET << "Update to the latest version from GitHub" << std::endl;
-	std::cout << "  -clean     " << RESET << "Execute clean_reports.sh (remove reports dir.)" << std::endl;
-	std::cout << "  -delete    " << RESET << "Full uninstall (binary and config)" << std::endl;
+	std::cout << "  config      " << RESET << "Open global configuration file" << std::endl;
+	std::cout << "  -update     " << RESET << "Update to the latest version from GitHub" << std::endl;
+	std::cout << "  -clean      " << RESET << "Execute clean_reports.sh (remove reports dir.)" << std::endl;
+	std::cout << "  -delete     " << RESET << "Full uninstall (binary and config)" << std::endl;
 
 	std::cout << "\n" << BOLD << "OPTIONS:" << RESET << std::endl;
+	std::cout << "  -f <fmt>    Set default format (md, pdf) in config" << std::endl;
 	std::cout << "  -s <style>  Set review style (e.g., minimal, security)" << std::endl;
 	std::cout << "  -l <lang>   Set output language (en, fr, es, etc.)" << std::endl;
 	std::cout << "  -m          List all available AI models" << std::endl;
@@ -35,10 +36,48 @@ void	display_help(void)
 
 	std::cout << "\n" << BOLD << "EXAMPLES:" << RESET << std::endl;
 	std::cout << "  air ." << std::endl;
-	std::cout << "  air -s security -l fr srcs/" << std::endl;
-	std::cout << "  air config" << std::endl;
+	std::cout << "  air -f pdf" << std::endl;
+	std::cout << "  air -s security -l fr srcs/ pdf" << std::endl;
 	std::cout << std::endl;
 	exit(0);
+}
+
+void	update_config_file(const std::string &key, const std::string &value)
+{
+	char* home = getenv("HOME");
+	if (!home)
+		return;
+	std::string path = std::string(home) + "/.ai_config.json";
+	
+	json j;
+	std::ifstream input(path);
+	if (input.is_open())
+	{
+		try
+		{
+			input >> j;
+		}
+		catch (...)
+		{
+			std::cerr << RED << "Error: Could not parse JSON for update." << RESET << std::endl;
+			return;
+		}
+		input.close();
+	}
+
+	if (key == "format")
+		j["default_format"] = value;
+	else
+		j[key] = value;
+
+	std::ofstream output(path);
+	if (output.is_open())
+	{
+		output << j.dump(4);
+		output.close();
+	}
+	else
+		std::cerr << RED << "Error: Could not write to " << path << RESET << std::endl;
 }
 
 std::string	strip_comments(const std::string &code, const std::string &ext)
@@ -57,10 +96,8 @@ std::string	strip_comments(const std::string &code, const std::string &ext)
 			else if (is_script && code[i] == '#')
 				s_comment = true;
 		}
-		
 		if (s_comment && code[i] == '\n')
 			s_comment = false;
-
 		if (!is_script && !s_comment && !m_comment && i + 1 < code.size() && code[i] == '/' && code[i + 1] == '*')
 		{
 			m_comment = true;
@@ -72,7 +109,6 @@ std::string	strip_comments(const std::string &code, const std::string &ext)
 			i++;
 			continue;
 		}
-
 		if (!s_comment && !m_comment)
 			result += code[i];
 	}
@@ -98,10 +134,14 @@ void	load_config(s_config &conf)
 		conf.api_url = j.value("api_url", "");
 		conf.model_type = j.value("model_type", "gemini");
 		conf.model_name = j.value("model_name", "");
+		
+		conf.format = j.value("default_format", "md");
+
 		if (conf.lang.empty())
 			conf.lang = j.value("default_lang", "en");
 		if (conf.style.empty())
 			conf.style = j.value("default_style", "minimal");
+
 		if (j.contains("styles") && j["styles"].contains(conf.style))
 		{
 			if (j["styles"][conf.style].contains(conf.lang))
@@ -132,95 +172,60 @@ void	load_config(s_config &conf)
 
 void	display_progress(size_t cur, size_t tot)
 {
-	int	bar_width;
-	int	pos;
+	int	bar_width = 30;
+	int	pos = (tot > 0) ? bar_width * cur / tot : bar_width;
 
-	bar_width = 30;
-	if (tot > 0)
-		pos = bar_width * cur / tot;
-	else
-		pos = bar_width;
 	std::cout << "\r" << YELLOW << "Analyzing: " << RESET << "[";
 	for (int i = 0; i < bar_width; ++i)
 	{
-		if (i < pos)
-			std::cout << "=";
-		else if (i == pos)
-			std::cout << ">";
-		else
-			std::cout << " ";
+		if (i < pos) std::cout << "=";
+		else if (i == pos) std::cout << ">";
+		else std::cout << " ";
 	}
-	if (tot > 0)
-		std::cout << "] " << (cur * 100 / tot) << "%" << std::flush;
-	else
-		std::cout << "] 100%" << std::flush;
+	std::cout << "] " << (tot > 0 ? (cur * 100 / tot) : 100) << "%" << std::flush;
 }
 
 int check_commands(std::string command)
 {
+	char* home = getenv("HOME");
+	if (!home) return (1);
+	std::string path = std::string(home) + "/.ai_config.json";
 
 	if (command == "config")
-	{
-		char* home = getenv("HOME");
-		if (!home)
-			return (1);
-		std::string path = std::string(home) + "/.ai_config.json";
-		std::string editor = "vim";
-		std::string cmd = editor + " " + path;
-		return (system(cmd.c_str()));
-	}
-
+		return (system(("vim " + path).c_str()));
 	if (command == "-clean")
 	{
-		std::cout << YELLOW << "Cleaning reports..." << RESET << std::endl;
 		system("rm -rf reports");
-		std::cout << GREEN << "Done." << RESET << std::endl;
+		std::cout << GREEN << "Reports cleaned." << RESET << std::endl;
 		return (0);
 	}
-
 	if (command == "-delete")
 	{
-		std::cout << RED << "WARNING: This will delete the binary and the configuration." << RESET << std::endl;
-		std::cout << "Are you sure? (y/n): ";
-		char confirm;
-		std::cin >> confirm;
-		if (confirm == 'y' || confirm == 'Y')
+		std::cout << RED << "Delete air and config? (y/n): " << RESET;
+		char c; std::cin >> c;
+		if (c == 'y' || c == 'Y')
 		{
-			system("rm -f ~/bin/ai_reviewer");
-			system("rm -f ~/.ai_config.json");
-			std::cout << GREEN << "Executable and config deleted. Please remove the alias from your .zshrc/.bashrc manually." << RESET << std::endl;
+			system("rm -f ~/bin/ai_reviewer ~/.ai_config.json");
 			return (0);
 		}
 		return (1);
 	}
-
 	if (command == "-update")
 	{
-		std::cout << BLUE << "Checking for updates..." << RESET << std::endl;
-		int ret = system("curl -sSL https://raw.githubusercontent.com/realgetOff/AI_Reviewer/main/install.sh | bash");
-		if (ret == 0)
-			std::cout << GREEN << "Update successful!" << RESET << std::endl;
-		else
-			std::cout << RED << "Update failed." << RESET << std::endl;
-		return (1);
+		return (system("curl -sSL https://raw.githubusercontent.com/realgetOff/AI_Reviewer/main/install.sh | bash"));
 	}
 	return(2);
 }
 
 void	scan_path(const std::string &p, std::vector<std::string> &files)
 {
-	struct stat		s;
-	DIR				*dir;
-	struct dirent	*e;
-	size_t			dot;
-
-	if (stat(p.c_str(), &s) != 0)
-		return ;
+	struct stat s;
+	if (stat(p.c_str(), &s) != 0) return;
 	if (S_ISDIR(s.st_mode))
 	{
-		dir = opendir(p.c_str());
-		if (!dir)
-			return ;
+		DIR *dir = opendir(p.c_str());
+		struct dirent *e;
+		if (!dir) return;
 		while ((e = readdir(dir)))
 		{
 			std::string name = e->d_name;
@@ -231,7 +236,7 @@ void	scan_path(const std::string &p, std::vector<std::string> &files)
 	}
 	else
 	{
-		dot = p.find_last_of(".");
+		size_t dot = p.find_last_of(".");
 		if (dot != std::string::npos)
 		{
 			std::string ext = p.substr(dot);
@@ -243,54 +248,114 @@ void	scan_path(const std::string &p, std::vector<std::string> &files)
 
 void	write_debug(const std::string &msg, bool enabled)
 {
-	if (!enabled)
-		return ;
-	std::ofstream	dbg("reports/debug.log", std::ios::app);
-	if (dbg.is_open())
-		dbg << msg << std::endl;
+	if (!enabled) return;
+	std::ofstream dbg("reports/debug.log", std::ios::app);
+	if (dbg.is_open()) dbg << msg << std::endl;
 }
 
-std::string	process_file(std::string f, s_config conf)
+std::string process_file(std::string f, s_config conf)
 {
-	std::ifstream		ifs(f);
-	std::stringstream	buf;
-	std::string			res;
-	std::string			ext;
-	std::string			clean_code;
-	std::string			out_name;
-	size_t				last;
-	size_t				dot;
+    std::ifstream ifs(f);
+    std::stringstream buf;
+    std::string res, ext, clean_code, out_name, report_path;
 
-	if (!ifs.is_open())
-		return (RED "[FAIL] " RESET + f);
-	write_debug("[START] Processing: " + f, conf.debug);
-	buf << ifs.rdbuf();
-	write_debug("[INFO] Read size: " + std::to_string(buf.str().size()) + " bytes", conf.debug);
-	dot = f.find_last_of(".");
-	if (dot != std::string::npos)
-		ext = f.substr(dot);
-	else
-		ext = "";
-	clean_code = strip_comments(buf.str(), ext);
-	write_debug("[INFO] Cleaned size: " + std::to_string(clean_code.size()) + " bytes", conf.debug);
-	write_debug("[API] Calling " + conf.model_type + "...", conf.debug);
-	res = call_ai(clean_code, conf);
-	if (res.substr(0, 5) == "Error")
-	{
-		std::ofstream	of("reports/error.md", std::ios::app);
-		if (of.is_open())
-			of << "### File: " << f << "\nDetails: " << res << "\n---\n";
-		write_debug("[ERROR] API failed for: " + f, conf.debug);
-		return (RED "[FAIL] " RESET + f + " (reports/error.md)");
-	}
-	last = f.find_last_of("/");
-	if (last == std::string::npos)
-		out_name = f;
-	else
-		out_name = f.substr(last + 1);
-	std::ofstream	of("reports/" + out_name + ".report.md");
-	if (of.is_open())
-		of << "# Review: " << f << "\n\n" << res;
-	write_debug("[SUCCESS] Finished: " + f, conf.debug);
-	return (GREEN "[OK] " RESET + f + " (reports/" + out_name + ".report.md)");
+    if (!ifs.is_open()) return (RED "[FAIL] " RESET + f);
+    buf << ifs.rdbuf();
+    size_t dot = f.find_last_of(".");
+    ext = (dot != std::string::npos) ? f.substr(dot) : "";
+    clean_code = strip_comments(buf.str(), ext);
+    res = call_ai(clean_code, conf);
+
+    if (res.substr(0, 5) == "Error")
+    {
+        std::ofstream of("reports/error.md", std::ios::app);
+        if (of.is_open()) of << "### File: " << f << "\n" << res << "\n---\n";
+        return (RED "[FAIL] " RESET + f);
+    }
+
+    size_t last = f.find_last_of("/");
+    out_name = (last == std::string::npos) ? f : f.substr(last + 1);
+	report_path = "reports/" + out_name + ".md";
+
+    std::ofstream of(report_path);
+    if (of.is_open())
+        of << "# Review: " << f << "\n\n" << res;
+    of.close();
+	
+	std::string display_path = "reports/" + out_name + (conf.format == "pdf" ? ".pdf" : ".md");
+	return (GREEN "[OK]   " RESET + f + " (" + display_path + ")|" + report_path);
+}
+
+bool save_as_pdf(const std::string& md_filename, bool debug)
+{
+    std::string pdf_filename = md_filename.substr(0, md_filename.size() - 3) + ".pdf";
+    
+    write_debug("[PDF] Input md: " + md_filename, debug);
+    write_debug("[PDF] Output pdf: " + pdf_filename, debug);
+
+    std::ifstream check_md(md_filename);
+    if (!check_md.is_open())
+    {
+        write_debug("[PDF] ERROR: input .md file not found: " + md_filename, debug);
+        std::cerr << RED << "Error: PDF conversion failed." << RESET << std::endl;
+        return false;
+    }
+    check_md.close();
+    write_debug("[PDF] Input file exists OK", debug);
+
+    const std::vector<std::string> engines = {"wkhtmltopdf", "weasyprint", "xelatex", "pdflatex"};
+
+    bool success = false;
+    for (const auto& engine : engines)
+    {
+        std::string check = "command -v " + engine + " > /dev/null 2>&1";
+        int avail = system(check.c_str());
+        write_debug("[PDF] Engine '" + engine + "' available: " + (avail == 0 ? "yes" : "no"), debug);
+        if (avail != 0)
+            continue;
+
+        std::string cmd = "pandoc " + md_filename
+                        + " --pdf-engine=" + engine
+                        + " -o " + pdf_filename
+                        + " 2>/tmp/pandoc_err.log";
+        write_debug("[PDF] Running: " + cmd, debug);
+        int ret = system(cmd.c_str());
+        write_debug("[PDF] pandoc exit code: " + std::to_string(ret), debug);
+
+        if (debug)
+        {
+            std::ifstream err_log("/tmp/pandoc_err.log");
+            if (err_log.is_open())
+            {
+                std::stringstream ss;
+                ss << err_log.rdbuf();
+                std::string err_content = ss.str();
+                if (!err_content.empty())
+                    write_debug("[PDF] pandoc stderr: " + err_content, debug);
+            }
+        }
+
+        if (ret == 0)
+        {
+            success = true;
+            write_debug("[PDF] Success with engine: " + engine, debug);
+            break;
+        }
+        write_debug("[PDF] Failed with engine: " + engine + ", trying next...", debug);
+    }
+
+    if (success)
+    {
+        if (std::remove(md_filename.c_str()) != 0)
+            write_debug("[PDF] WARN: Could not remove .md file: " + md_filename, debug);
+        else
+            write_debug("[PDF] Removed .md file: " + md_filename, debug);
+        return true;
+    }
+
+    std::cerr << RED << "Error: PDF conversion failed." << RESET << std::endl;
+    std::cerr << YELLOW << "Tip: Install one of: wkhtmltopdf, weasyprint, "
+              << "xelatex (texlive), or pdflatex" << RESET << std::endl;
+    write_debug("[PDF] All engines failed.", debug);
+    return false;
 }

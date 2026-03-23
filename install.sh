@@ -6,6 +6,7 @@ YELLOW="\033[1;33m"
 RED="\033[1;31m"
 RESET="\033[0m"
 
+PANDOC_URL="https://github.com/jgm/pandoc/releases/download/3.1.11/pandoc-3.1.11-linux-amd64.tar.gz"
 REPO_URL="https://github.com/realgetOff/AI_Reviewer.git"
 TEMP_DIR="/tmp/ai_reviewer_build"
 BIN_DIR="$HOME/bin"
@@ -17,7 +18,7 @@ git clone "$REPO_URL" "$TEMP_DIR" || { echo -e "${RED}Clone failed${RESET}"; exi
 cd "$TEMP_DIR"
 
 VERSION=$(grep "#define CURRENT_VERSION" includes/ai_client.hpp | cut -d'"' -f2)
-echo -e "${GREEN}==> air v${VERSION}${RESET}"
+echo -e "${GREEN}==> air ${VERSION}${RESET}"
 
 echo -e "${BLUE}==> Compiling source code...${RESET}"
 make re || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
@@ -60,6 +61,18 @@ fi
 if ! grep -q "alias air=" "$SHELL_RC"; then
     echo "alias air='ai_reviewer'" >> "$SHELL_RC"
     echo -e "${GREEN}==> Alias 'air' added successfully!${RESET}"
+fi
+
+if ! command -v pandoc &> /dev/null; then
+    echo -e "${BLUE}==> Installing Pandoc (portable version)...${RESET}"
+    curl -L "$PANDOC_URL" -o /tmp/pandoc.tar.gz
+    tar -xzf /tmp/pandoc.tar.gz --strip-components=2 -C "$BIN_DIR" pandoc-3.1.11/bin/pandoc
+    chmod +x "$BIN_DIR/pandoc"
+    rm /tmp/pandoc.tar.gz
+    echo -e "${GREEN}==> Pandoc installed successfully!${RESET}"
+fi
+if ! command -v wkhtmltopdf &> /dev/null; then
+    echo -e "${BLUE}==> Tip: For better PDF quality, install wkhtmltopdf if possible.${RESET}"
 fi
 
 rm -rf "$TEMP_DIR"

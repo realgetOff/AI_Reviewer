@@ -43,7 +43,6 @@ using json = nlohmann::json;
 struct s_config
 {
 	bool verbose;
-	bool save_md;
 	bool debug;
 
 	std::string	style;
@@ -53,6 +52,7 @@ struct s_config
 	std::string	api_url;
 	std::string model_type;
 	std::string model_name;
+	std::string format;
 };
 
 void		check_update(void);
@@ -64,6 +64,8 @@ void		scan_path(const std::string &p, std::vector<std::string> &files);
 void		write_debug(const std::string &msg, bool enabled);
 int     	check_commands(std::string command);
 std::string	process_file(std::string f, s_config conf);
+bool 		save_as_pdf(const std::string& md_filename, bool debug);
+void		update_config_file(const std::string &key, const std::string &value);
 
 void 		list_provider_models(const s_config &config);
 std::string	call_ai(const std::string &code, const s_config &config);

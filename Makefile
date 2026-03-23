@@ -35,7 +35,7 @@ $(OBJS_DIR)/%.o: $(SRCS_DIR)/%.cpp
 	@$(eval CURRENT_FILE=$(shell echo $$(($(CURRENT_FILE) + 1))))
 	@$(eval PERCENT=$(shell echo $$(($(CURRENT_FILE) * 100 / $(TOTAL_FILES)))))
 	@$(eval PROGRESS=$(shell echo $$(($(CURRENT_FILE) * 30 / $(TOTAL_FILES)))))
-	@printf "\r$(Y)Compiling:  [$(G)%-30s$(Y)] %d%% (%d/%d)$(R)" \
+	@printf "\r$(Y)Compiling:  [$(R)%-30s$(Y)] %d%% (%d/%d)$(R)" \
 		"$$(printf '%.0s=' $$(seq 1 $(PROGRESS)))" \
 		"$(PERCENT)" "$(CURRENT_FILE)" "$(TOTAL_FILES)"
 	@$(CC) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
