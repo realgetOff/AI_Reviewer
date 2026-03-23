@@ -30,6 +30,7 @@ void	display_help(void)
 	std::cout << "  -f <fmt>    Set default format (md, pdf) in config" << std::endl;
 	std::cout << "  -s <style>  Set review style (e.g., minimal, security)" << std::endl;
 	std::cout << "  -l <lang>   Set output language (en, fr)" << std::endl;
+	std::cout << "  -g          Analyze all files as one (global context mode)" << std::endl;
 	std::cout << "  -m          List all available AI models" << std::endl;
 	std::cout << "  -d          Enable debug mode (verbose logs)" << std::endl;
 	std::cout << "  -t <sec>    Set request timeout in seconds (default: 30)" << std::endl;
@@ -361,4 +362,45 @@ bool save_as_pdf(const std::string& md_filename, bool debug)
               << "xelatex (texlive), or pdflatex" << RESET << std::endl;
     write_debug("[PDF] All engines failed.", debug);
     return false;
+}
+
+std::string process_all(const std::vector<std::string> &files, s_config conf)
+{
+	std::string all_code = "";
+
+	for (const auto &f : files)
+	{
+		std::ifstream ifs(f);
+		if (!ifs.is_open())
+		{
+			write_debug("[GLOBAL] Could not open: " + f, conf.debug);
+			continue;
+		}
+		std::stringstream buf;
+		buf << ifs.rdbuf();
+		size_t dot = f.find_last_of(".");
+		std::string ext = (dot != std::string::npos) ? f.substr(dot) : "";
+		std::string clean = strip_comments(buf.str(), ext);
+		all_code += "// === FILE: " + f + " ===\n" + clean + "\n\n";
+		write_debug("[GLOBAL] Added file: " + f + " (" + std::to_string(clean.size()) + " chars)", conf.debug);
+	}
+
+	write_debug("[GLOBAL] Total payload size: " + std::to_string(all_code.size()), conf.debug);
+	std::string res = call_ai(all_code, conf);
+
+	if (res.substr(0, 5) == "Error")
+	{
+		std::ofstream of("reports/error.md", std::ios::app);
+		if (of.is_open()) of << "### Global analysis\n" << res << "\n---\n";
+		return (RED "[FAIL] " RESET "Global analysis failed|");
+	}
+
+	std::string report_path = "reports/global.md";
+	std::ofstream of(report_path);
+	if (of.is_open())
+		of << "# Global Review\n\n" << res;
+	of.close();
+
+	std::string display_path = (conf.format == "pdf") ? "reports/global.pdf" : "reports/global.md";
+	return (GREEN "[OK]   " RESET "Global analysis (" + display_path + ")|" + report_path);
 }

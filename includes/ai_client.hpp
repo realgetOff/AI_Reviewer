@@ -42,20 +42,21 @@ using json = nlohmann::json;
 
 struct s_config
 {
-	bool verbose;
-	bool debug;
-
-	std::string	style;
-	std::string	lang;
-	std::string	prompt;
-	std::string	api_key;
-	std::string	api_url;
+	bool        verbose;
+	bool        debug;
+	bool        global;
+	std::string style;
+	std::string lang;
+	std::string prompt;
+	std::string api_key;
+	std::string api_url;
 	std::string model_type;
 	std::string model_name;
 	std::string format;
-	int timeout;
+	int         timeout;
 };
 
+std::string process_all(const std::vector<std::string> &files, s_config conf);
 void		check_update(void);
 void	    display_help(void);
 std::string	strip_comments(const std::string &code, const std::string &ext);
