@@ -91,8 +91,8 @@ static std::string exec_command(const std::string &cmd, bool debug)
     int ret = pclose(pipe);
     if (WEXITSTATUS(ret) == 124)
         output += "\n(timeout: killed after 10s)";
-    if (output.size() > 2000)
-        output = output.substr(0, 2000) + "\n...(truncated)";
+    // if (output.size() > 2000)
+        // output = output.substr(0, 2000) + "\n...(truncated)";
     if (output.empty())
         output = "(no output)";
     agent_log("Output: " + output.substr(0, 200), debug);
@@ -188,8 +188,8 @@ static std::string exec_interactive(const std::string &cmd,
     read_available();
     close(out_pipe[0]);
 
-    if (output.size() > 2000)
-        output = output.substr(0, 2000) + "\n...(truncated)";
+    // if (output.size() > 2000)
+        // output = output.substr(0, 2000) + "\n...(truncated)";
     if (output.empty())
         output = "(no output)";
 
