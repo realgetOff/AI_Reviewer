@@ -36,13 +36,18 @@ air config
 
 | Flag | Description |
 | :--- | :--- |
-| `-s <style>` | Set review style (e.g., `minimal`, `security`…) |
+| `-s <style>` | Set review style (e.g., `minimal`, `security`, `audit`, `crash`, `fix`) |
 | `-l <lang>` | Set output language (`en`, `fr`) |
 | `-f <fmt>` | Set default format (`md`, `pdf`) |
-| `-t <sec>` | Set custom request timeout |
+| `-t <sec>` | Set custom request timeout (default: 30s) |
+| `-i <n>` | Set max agent iterations (default: 5) |
+| `-I <sec>` | Set interactive program timeout (default: 10s) |
+| `-c <prompt>` | Use custom prompt instead of config style |
 | `-m` | List available AI models |
 | `-d` | Enable debug mode (verbose logs) |
 | `-g` | Analyze all files as one (global context mode) |
+| `-a` | Enable agent mode (AI executes commands autonomously) |
+| `--version` | Show current version |
 | `-h` | Display help menu |
 
 ## Output
