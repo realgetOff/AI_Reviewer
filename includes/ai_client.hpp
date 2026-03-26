@@ -13,7 +13,7 @@
 #ifndef AI_CLIENT_HPP
 #define AI_CLIENT_HPP
 
-#define CURRENT_VERSION "v1.2.8"
+#define CURRENT_VERSION "v1.2.9"
 
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
@@ -57,6 +57,7 @@ struct s_config
 	std::string format;
 	int         timeout;
 	int			max_iter;
+	int			interactive_timeout;
 };
 
 void run_agent(const std::vector<std::string> &files, s_config conf);

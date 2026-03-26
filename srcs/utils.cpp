@@ -32,16 +32,19 @@ void	display_help(void)
 	std::cout << "  -l <lang>   Set output language (en, fr)" << std::endl;
 	std::cout << "  -c <prompt> Use custom prompt instead of config style" << std::endl;
 	std::cout << "  -t <sec>    Set request timeout in seconds (default: 30)" << std::endl;
+	std::cout << "  -I <sec>    Set interactive program timeout in seconds (default: 10)" << std::endl;
 	std::cout << "  -a          Enable agent mode" << std::endl;
 	std::cout << "  -g          Analyze all files as one (global context mode)" << std::endl;
 	std::cout << "  -d          Enable debug mode (verbose logs)" << std::endl;
 	std::cout << "  -m          List all available AI models" << std::endl;
+	std::cout << "  --version	Show current version" << std::endl;
 	std::cout << "  -h          Show this help message" << std::endl;
 
 	std::cout << "\n" << BOLD << "EXAMPLES:" << RESET << std::endl;
 	std::cout << "  air ." << std::endl;
 	std::cout << "  air -f pdf" << std::endl;
-	std::cout << "  air -s security -l fr srcs/ pdf" << std::endl;
+	std::cout << "  air -s security -l fr srcs/*" << std::endl;
+	std::cout << "  air -c \"try to break my code by doing edges cases\" -a" << std::endl;
 	std::cout << std::endl;
 	exit(0);
 }
@@ -136,6 +139,8 @@ void	load_config(s_config &conf)
 		j = json::parse(f);
 		if (conf.timeout == 0)
     		conf.timeout = j.value("default_timeout", 30);
+		if(conf.interactive_timeout == 0)
+			conf.interactive_timeout = j.value("default_interactive_timeout", 10);
 		conf.api_key = j.value("api_key", "");
 		conf.api_url = j.value("api_url", "");
 		conf.model_type = j.value("model_type", "gemini");
@@ -215,6 +220,11 @@ int check_commands(std::string command)
 			return (0);
 		}
 		return (1);
+	}
+	if (command == "--version" || command == "-v")
+	{
+   	 	std::cout << GREEN << "air " << CURRENT_VERSION << RESET << std::endl;
+   		return (0);
 	}
 	if (command == "-update")
 	{

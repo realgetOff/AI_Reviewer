@@ -14,7 +14,7 @@
 
 int	main(int argc, char **argv)
 {
-	s_config								conf = {false, false, false, false, "", "", "", "", "", "", "gemini", "", "md", 0, 5};
+	s_config								conf = {false, false, false, false, "", "", "", "", "", "", "gemini", "", "md", 0, 5, 10};
 	std::vector<std::string>				files;
 	std::vector<std::string>				results;
 	std::vector<std::future<std::string>>	futures;
@@ -24,8 +24,22 @@ int	main(int argc, char **argv)
 	if (argc > 1)
 		if (check_commands(argv[1]) != 2)
 			return (0);
-	while ((opt = getopt(argc, argv, "t:i:agdhms:l:f:c:")) != -1)
+	while ((opt = getopt(argc, argv, "t:i:I:agdhms:l:f:c:")) != -1)
 	{
+		if (opt == 'I')
+		{
+    		if (!optarg)
+    		{
+    		    std::cerr << RED << "Error: -I requires a value" << RESET << std::endl;
+    		    return (1);
+    		}
+    		conf.interactive_timeout = std::atoi(optarg);
+    		if (conf.interactive_timeout <= 0)
+    		{
+        		std::cerr << RED << "Error: -I must be > 0" << RESET << std::endl;
+        		return (1);
+    		}
+		}
 		if (opt == 'h')
 			display_help();
 		if (opt == 'g')
