@@ -46,15 +46,19 @@ VERSION=$(grep "#define CURRENT_VERSION" includes/ai_client.hpp | cut -d'"' -f2)
 echo -e "${GREEN}==> ai_reviewer ${VERSION}${RESET}"
 
 echo -e "${BLUE}==> Compiling with meson...${RESET}"
+
 if [ ! -d "build" ]; then
-    meson setup build --prefix="$HOME/.local" --bindir="$BIN_DIR" &> /dev/null \
-        || { echo -e "${RED}Meson setup failed${RESET}"; exit 1; }
+    meson setup build --prefix="$HOME/.local" --bindir="$BIN_DIR" &> /dev/null
 else
-    meson setup --reconfigure build --prefix="$HOME/.local" --bindir="$BIN_DIR" &> /dev/null \
-        || { echo -e "${RED}Meson reconfigure failed${RESET}"; exit 1; }
+    meson setup --reconfigure build --prefix="$HOME/.local" --bindir="$BIN_DIR" &> /dev/null
 fi
 
-meson compile -C build &> /dev/null || { echo -e "${RED}Compilation failed${RESET}"; exit 1; }
+if ! meson compile -C build &> /dev/null; then
+    echo -e "${YELLOW}==> Compilation failed, retrying with clean build...${RESET}"
+    rm -rf build
+    meson setup build --prefix="$HOME/.local" --bindir="$BIN_DIR" &> /dev/null || { echo -e "${RED}Meson setup failed${RESET}"; exit 1; }
+    meson compile -C build &> /dev/null || { echo -e "${RED}Compilation failed again. Check your dependencies (libcurl, libnghttp2).${RESET}"; exit 1; }
+fi
 
 mkdir -p "$BIN_DIR"
 if [ -f "$BIN_DIR/ai_reviewer" ]; then
