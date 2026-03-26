@@ -13,7 +13,7 @@
 #ifndef AI_CLIENT_HPP
 #define AI_CLIENT_HPP
 
-#define CURRENT_VERSION "v1.2.0"
+#define CURRENT_VERSION "v1.2.8"
 
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
@@ -45,17 +45,21 @@ struct s_config
 	bool        verbose;
 	bool        debug;
 	bool        global;
+	bool        agent;
 	std::string style;
 	std::string lang;
 	std::string prompt;
+	std::string custom_prompt;
 	std::string api_key;
 	std::string api_url;
 	std::string model_type;
 	std::string model_name;
 	std::string format;
 	int         timeout;
+	int			max_iter;
 };
 
+void run_agent(const std::vector<std::string> &files, s_config conf);
 std::string process_all(const std::vector<std::string> &files, s_config conf);
 void		check_update(void);
 void	    display_help(void);

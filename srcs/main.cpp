@@ -14,24 +14,40 @@
 
 int	main(int argc, char **argv)
 {
-	s_config								conf = {false, false, false, "", "", "", "", "", "", "gemini", "md", 0};
+	s_config								conf = {false, false, false, false, "", "", "", "", "", "", "gemini", "", "md", 0, 5};
 	std::vector<std::string>				files;
 	std::vector<std::string>				results;
 	std::vector<std::future<std::string>>	futures;
 	int										opt;
 
 	check_update();
-
 	if (argc > 1)
-		if(check_commands(argv[1]) != 2)
-			return(0);
-
-	while ((opt = getopt(argc, argv, "t:gdhms:l:f:")) != -1)
+		if (check_commands(argv[1]) != 2)
+			return (0);
+	while ((opt = getopt(argc, argv, "t:i:agdhms:l:f:c:")) != -1)
 	{
 		if (opt == 'h')
 			display_help();
 		if (opt == 'g')
 			conf.global = true;
+		if (opt == 'a')
+			conf.agent = true;
+		if (opt == 'c')
+			conf.custom_prompt = optarg;
+		if (opt == 'i')
+		{
+			if (!optarg)
+			{
+				std::cerr << RED << "Error: -i requires a value" << RESET << std::endl;
+				return (1);
+			}
+			conf.max_iter = std::atoi(optarg);
+			if (conf.max_iter <= 0)
+			{
+				std::cerr << RED << "Error: -i must be > 0" << RESET << std::endl;
+				return (1);
+			}
+		}
 		if (opt == 'm')
 		{
 			load_config(conf);
@@ -40,12 +56,17 @@ int	main(int argc, char **argv)
 		}
 		if (opt == 't')
 		{
-    		conf.timeout = std::atoi(optarg);
-   			if (conf.timeout <= 0)
-   		 	{
-    			std::cerr << RED << "Error: timeout must be > 0" << RESET << std::endl;
-    		    return (1);
-    		}
+			if (!optarg)
+			{
+				std::cerr << RED << "Error: -t requires a value" << RESET << std::endl;
+				return (1);
+			}
+			conf.timeout = std::atoi(optarg);
+			if (conf.timeout <= 0)
+			{
+				std::cerr << RED << "Error: timeout must be > 0" << RESET << std::endl;
+				return (1);
+			}
 		}
 		if (opt == 's')
 			conf.style = optarg;
@@ -69,12 +90,17 @@ int	main(int argc, char **argv)
 			}
 		}
 	}
-
 	load_config(conf);
-
+	if (!conf.custom_prompt.empty())
+		conf.prompt = conf.custom_prompt;
+	if (conf.agent)
+	{
+		mkdir("reports", 0777);
+		run_agent(files, conf);
+		return (0);
+	}
 	if (conf.api_key.empty() || optind >= argc)
 		display_help();
-
 	if (conf.model_type != "gemini" && conf.model_name.empty())
 	{
 		std::cerr << RED << "Error: model_name is required in config.json for " << conf.model_type << RESET << std::endl;
@@ -85,7 +111,6 @@ int	main(int argc, char **argv)
 		scan_path(argv[i], files);
 	if (files.empty())
 		return (0);
-
 	if (conf.global)
 	{
 		std::cout << YELLOW << "Analyzing: " << RESET << "[global mode]" << std::flush;
@@ -105,7 +130,6 @@ int	main(int argc, char **argv)
 			save_as_pdf(md_path, conf.debug);
 		return (0);
 	}
-
 	for (const auto &f : files)
 		futures.push_back(std::async(std::launch::async, process_file, f, conf));
 	display_progress(0, files.size());

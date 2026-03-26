@@ -30,10 +30,12 @@ void	display_help(void)
 	std::cout << "  -f <fmt>    Set default format (md, pdf) in config" << std::endl;
 	std::cout << "  -s <style>  Set review style (minimal, security)" << std::endl;
 	std::cout << "  -l <lang>   Set output language (en, fr)" << std::endl;
-	std::cout << "  -g          Analyze all files as one (global context mode)" << std::endl;
-	std::cout << "  -m          List all available AI models" << std::endl;
-	std::cout << "  -d          Enable debug mode (verbose logs)" << std::endl;
+	std::cout << "  -c <prompt> Use custom prompt instead of config style" << std::endl;
 	std::cout << "  -t <sec>    Set request timeout in seconds (default: 30)" << std::endl;
+	std::cout << "  -a          Enable agent mode" << std::endl;
+	std::cout << "  -g          Analyze all files as one (global context mode)" << std::endl;
+	std::cout << "  -d          Enable debug mode (verbose logs)" << std::endl;
+	std::cout << "  -m          List all available AI models" << std::endl;
 	std::cout << "  -h          Show this help message" << std::endl;
 
 	std::cout << "\n" << BOLD << "EXAMPLES:" << RESET << std::endl;
@@ -300,7 +302,7 @@ bool save_as_pdf(const std::string& md_filename, bool debug)
     std::ifstream check_md(md_filename);
     if (!check_md.is_open())
     {
-        write_debug("[PDF] ERROR: input .md file not found: " + md_filename, debug);
+		write_debug("[PDF] ERROR: input .md file not found: " + md_filename, debug);
         std::cerr << RED << "Error: PDF conversion failed." << RESET << std::endl;
         return false;
     }

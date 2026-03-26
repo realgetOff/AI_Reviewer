@@ -6,6 +6,7 @@ dependencies = [
 ]
 
 sources = [
+  'srcs/agent.cpp',
   'srcs/ai_client.cpp',
   'srcs/main.cpp',
   'srcs/update.cpp',
