@@ -13,7 +13,7 @@
 #ifndef AI_CLIENT_HPP
 #define AI_CLIENT_HPP
 
-#define CURRENT_VERSION "v1.2.9"
+#define CURRENT_VERSION "v1.3.0"
 #define OPTIMAL_HISTORY_SIZE 8000
 
 #define RESET   "\033[0m"
