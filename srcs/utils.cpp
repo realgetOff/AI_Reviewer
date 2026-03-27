@@ -416,3 +416,8 @@ std::string process_all(const std::vector<std::string> &files, s_config conf)
 	std::string display_path = (conf.format == "pdf") ? "reports/global.pdf" : "reports/global.md";
 	return (GREEN "[OK]   " RESET "Global analysis (" + display_path + ")|" + report_path);
 }
+
+void setup_signals(void)
+{
+    signal(SIGPIPE, SIG_IGN);
+}

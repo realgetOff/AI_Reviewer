@@ -14,6 +14,7 @@
 #define AI_CLIENT_HPP
 
 #define CURRENT_VERSION "v1.2.9"
+#define OPTIMAL_HISTORY_SIZE 8000
 
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
@@ -24,11 +25,13 @@
 #define MAGENTA "\033[35m"
 #define CYAN    "\033[36m"
 
+#include <sys/wait.h>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 #include <iostream>
 #include <future>
+#include <signal.h>
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
@@ -60,6 +63,9 @@ struct s_config
 	int			interactive_timeout;
 };
 
+
+
+void setup_signals(void);
 void run_agent(const std::vector<std::string> &files, s_config conf);
 std::string process_all(const std::vector<std::string> &files, s_config conf);
 void		check_update(void);

@@ -66,6 +66,26 @@ static bool is_bypassed(const std::string &cmd)
     return false;
 }
 
+void check_child_status(int status, std::string &output)
+{
+    if (WIFSIGNALED(status))
+    {
+        int sig = WTERMSIG(status);
+        output += "\n[CRASH] Process terminated by signal: " + std::to_string(sig) + "\n";
+
+        if (sig == 11)
+            output += "Reason: Segmentation fault\n";
+        else if (sig == 6)
+            output += "Reason: Aborted\n";
+    }
+    else if (WIFEXITED(status))
+    {
+        int exit_code = WEXITSTATUS(status);
+        if (exit_code != 0)
+            output += "\n[EXIT] Process exited with code: " + std::to_string(exit_code) + "\n";
+    }
+}
+
 static bool ask_permission(const std::string &cmd, bool fr)
 {
     std::cout << YELLOW << (fr ? "[AGENT] Exécuter? " : "[AGENT] Execute? ") << RESET
@@ -79,39 +99,70 @@ static bool ask_permission(const std::string &cmd, bool fr)
 
 static std::string exec_command(const std::string &cmd, bool debug)
 {
+    std::string output;
+    char        buf[512];
+    FILE        *pipe;
+    int         ret;
+
     agent_log("Running shell: " + cmd, debug);
+    
     std::string full_cmd = "timeout 10s bash -c '(" + cmd + " </dev/null) 2>&1'";
-    FILE *pipe = popen(full_cmd.c_str(), "r");
+    
+    pipe = popen(full_cmd.c_str(), "r");
     if (!pipe)
         return ("(popen failed)");
-    std::string output;
-    char buf[512];
+
     while (fgets(buf, sizeof(buf), pipe))
         output += buf;
-    int ret = pclose(pipe);
+
+    ret = pclose(pipe);
+
     if (WEXITSTATUS(ret) == 124)
         output += "\n(timeout: killed after 10s)";
-    // if (output.size() > 2000)
-        // output = output.substr(0, 2000) + "\n...(truncated)";
+    else if (WIFSIGNALED(ret))
+    {
+        int sig = WTERMSIG(ret);
+        output += "\n[CRASH] Process terminated by signal " + std::to_string(sig);
+        if (sig == SIGSEGV)
+            output += " (Segmentation fault)";
+        output += "\n";
+    }
+
+    if (output.size() > 10000)
+        output = output.substr(0, 5000) + "\n...(truncated)...\n" + output.substr(output.size() - 5000);
     if (output.empty())
         output = "(no output)";
-    agent_log("Output: " + output.substr(0, 200), debug);
-    return output;
+
+    std::string preview;
+    if (output.size() > 200)
+        preview = output.substr(0, 200);
+    else
+        preview = output;
+    
+    agent_log("Output: " + preview, debug);
+    return (output);
 }
 
 static std::string exec_interactive(const std::string &cmd,
                                     const std::vector<std::string> &inputs,
                                     int timeout_sec, bool debug)
 {
+    int in_pipe[2];
+    int out_pipe[2];
+    pid_t pid;
+    std::string output;
+    char buf[512];
+
     agent_log("Running interactive: " + cmd, debug);
     for (const auto &inp : inputs)
         agent_log("  input: " + inp, debug);
 
-    int in_pipe[2], out_pipe[2];
+    signal(SIGPIPE, SIG_IGN);
+
     if (pipe(in_pipe) < 0 || pipe(out_pipe) < 0)
         return ("(pipe failed)");
 
-    pid_t pid = fork();
+    pid = fork();
     if (pid < 0)
         return ("(fork failed)");
 
@@ -124,13 +175,18 @@ static std::string exec_interactive(const std::string &cmd,
         dup2(out_pipe[1], STDERR_FILENO);
         close(in_pipe[0]);
         close(out_pipe[1]);
+
         std::vector<std::string> parts;
         std::istringstream iss(cmd);
         std::string part;
-        while (iss >> part) parts.push_back(part);
+        while (iss >> part)
+            parts.push_back(part);
+
         std::vector<char*> argv_vec;
-        for (auto &p : parts) argv_vec.push_back(&p[0]);
+        for (auto &p : parts)
+            argv_vec.push_back(&p[0]);
         argv_vec.push_back(nullptr);
+
         execvp(argv_vec[0], argv_vec.data());
         _exit(1);
     }
@@ -140,11 +196,7 @@ static std::string exec_interactive(const std::string &cmd,
 
     fcntl(out_pipe[0], F_SETFL, O_NONBLOCK);
 
-    std::string output;
-    char buf[512];
-
-    auto read_available = [&]()
-	{
+    auto read_available = [&]() {
         ssize_t n;
         while ((n = read(out_pipe[0], buf, sizeof(buf) - 1)) > 0)
         {
@@ -155,11 +207,16 @@ static std::string exec_interactive(const std::string &cmd,
 
     for (const auto &inp : inputs)
     {
+        int status;
+        if (waitpid(pid, &status, WNOHANG) != 0)
+            break;
+
         usleep(200000);
         read_available();
 
         std::string line = inp + "\n";
-        write(in_pipe[1], line.c_str(), line.size());
+        if (write(in_pipe[1], line.c_str(), line.size()) == -1)
+            break;
         agent_log("Sent: " + inp, debug);
     }
 
@@ -167,34 +224,60 @@ static std::string exec_interactive(const std::string &cmd,
 
     int elapsed = 0;
     int status = 0;
+    bool exited = false;
+
     while (elapsed < timeout_sec * 10)
     {
         usleep(100000);
         read_available();
         pid_t res = waitpid(pid, &status, WNOHANG);
         if (res == pid)
-			break;
+        {
+            exited = true;
+            break;
+        }
         elapsed++;
     }
 
-    if (elapsed >= timeout_sec * 10)
+    if (!exited)
     {
         agent_log("Timeout reached, killing process", debug);
         kill(pid, SIGKILL);
         waitpid(pid, &status, 0);
-        output += "\n(timeout: killed after " + std::to_string(timeout_sec) + "s)";
+        output += "\n[ERROR] Command timed out after " + std::to_string(timeout_sec) + "s\n";
+    }
+    else
+    {
+        if (WIFSIGNALED(status))
+        {
+            int sig = WTERMSIG(status);
+            output += "\n[CRASH] Process terminated by signal " + std::to_string(sig);
+            if (sig == SIGSEGV)
+                output += " (Segmentation fault)";
+            else if (sig == SIGABRT)
+                output += " (Abort/Assertion failed)";
+            output += "\n";
+        }
+        else if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+        {
+            output += "\n[EXIT] Process finished with error code " + std::to_string(WEXITSTATUS(status)) + "\n";
+        }
     }
 
     read_available();
     close(out_pipe[0]);
 
-    // if (output.size() > 2000)
-        // output = output.substr(0, 2000) + "\n...(truncated)";
     if (output.empty())
         output = "(no output)";
 
-    agent_log("Interactive output: " + output.substr(0, 200), debug);
-    return output;
+    std::string preview;
+    if (output.size() > 200)
+        preview = output.substr(0, 200);
+    else
+        preview = output;
+
+    agent_log("Interactive output: " + preview, debug);
+    return (output);
 }
 
 static std::string get_ls(bool debug)
@@ -211,12 +294,30 @@ static std::string get_ls(bool debug)
     return output;
 }
 
+static void trim_history(std::string &history, size_t max_size)
+{
+    if (history.size() <= max_size) return;
+
+    size_t to_remove = history.size() - max_size;
+    size_t cut_pos = history.find("---\n", to_remove);
+
+    if (cut_pos != std::string::npos)
+        history = "[Older iterations removed to save memory...]\n" + history.substr(cut_pos + 4);
+    else
+        history = "[Older iterations removed...]\n" + history.substr(to_remove);
+}
+
 void run_agent(const std::vector<std::string> &, s_config conf)
 {
     bool fr = (conf.lang == "fr");
 
     char cwd_buf[1024];
-    std::string cwd = (getcwd(cwd_buf, sizeof(cwd_buf))) ? cwd_buf : ".";
+    std::string cwd;
+
+    if (getcwd(cwd_buf, sizeof(cwd_buf)))
+        cwd = cwd_buf;
+    else
+        cwd = ".";
 
     agent_log("Starting agent in: " + cwd, conf.debug);
     agent_log("Max iterations: " + std::to_string(conf.max_iter), conf.debug);
@@ -224,45 +325,43 @@ void run_agent(const std::vector<std::string> &, s_config conf)
     std::string ls_output = get_ls(conf.debug);
     agent_log("Directory:\n" + ls_output, conf.debug);
 
-    std::string agent_system =
-        conf.prompt
-        + "\n\nWorking directory: " + cwd
-        + "\n\nDirectory contents:\n" + ls_output
-        + "\n\n"
-        + (fr ?
-            "Tu es un agent autonome. Explore librement : ls, cat, make, compile, teste.\n"
-            "Ne suppose pas le contenu des fichiers — lis-les avec cat/head si nécessaire.\n\n"
-            "IMPORTANT : avant d'exécuter un binaire, réfléchis :\n"
-            "- Est-ce qu'il attend une entrée utilisateur en boucle ? (shell, REPL, jeu...)\n"
-            "- Si OUI → utilise le type 'interactive' et prépare tes inputs à l'avance\n"
-            "- Si NON → utilise le type 'shell'\n\n"
-           :
-            "You are an autonomous agent. Explore freely: ls, cat, make, compile, test.\n"
-            "Do NOT assume file contents — read them with cat/head if needed.\n\n"
-            "IMPORTANT: before running a binary, think:\n"
-            "- Does it wait for user input in a loop? (shell, REPL, game...)\n"
-            "- If YES → use type 'interactive' and prepare your inputs in advance\n"
-            "- If NO  → use type 'shell'\n\n"
-          )
-        + (fr ?
-            "Réponds UNIQUEMENT en JSON valide :\n"
-           :
-            "Respond ONLY in valid JSON:\n"
-          )
-        + "{\n"
-          "  \"thoughts\": \"...\",\n"
-          "  \"commands\": [\n"
-          "    {\"type\": \"shell\", \"cmd\": \"make\"},\n"
-          "    {\"type\": \"interactive\", \"cmd\": \"./minishell\", \"inputs\": [\"echo hi\", \"exit\"], \"timeout\": 10}\n"
-          "  ],\n"
-          "  \"done\": false,\n"
-          "  \"report\": \"\"\n"
-          "}\n"
-        + (fr ?
-            "Mets done=true et remplis report (markdown) quand tu as terminé."
-           :
-            "Set done=true and fill report (markdown) when finished."
-          );
+    std::string agent_system_base = conf.prompt + "\n\nWorking directory: " + cwd + "\n\nDirectory contents:\n" + ls_output + "\n\n";
+
+    if (fr)
+    {
+        agent_system_base += "Tu es un agent autonome. Explore librement : ls, cat, make, compile, teste.\n"
+                             "Ne suppose pas le contenu des fichiers — lis-les avec cat/head si nécessaire.\n\n"
+                             "IMPORTANT : avant d'exécuter un binaire, réfléchis :\n"
+                             "- Est-ce qu'il attend une entrée utilisateur en boucle ? (shell, REPL, jeu...)\n"
+                             "- Si OUI → utilise le type 'interactive' et prépare tes inputs à l'avance\n"
+                             "- Si NON → utilise le type 'shell'\n\n"
+                             "Réponds UNIQUEMENT en JSON valide :\n";
+    }
+    else
+    {
+        agent_system_base += "You are an autonomous agent. Explore freely: ls, cat, make, compile, test.\n"
+                             "Do NOT assume file contents — read them with cat/head if needed.\n\n"
+                             "IMPORTANT: before running a binary, think:\n"
+                             "- Does it wait for user input in a loop? (shell, REPL, game...)\n"
+                             "- If YES → use type 'interactive' and prepare your inputs in advance\n"
+                             "- If NO  → use type 'shell'\n\n"
+                             "Respond ONLY in valid JSON:\n";
+    }
+
+    agent_system_base += "{\n"
+                         "  \"thoughts\": \"...\",\n"
+                         "  \"commands\": [\n"
+                         "    {\"type\": \"shell\", \"cmd\": \"make\"},\n"
+                         "    {\"type\": \"interactive\", \"cmd\": \"./minishell\", \"inputs\": [\"echo hi\", \"exit\"], \"timeout\": 10}\n"
+                         "  ],\n"
+                         "  \"done\": false,\n"
+                         "  \"report\": \"\"\n"
+                         "}\n";
+
+    if (fr)
+        agent_system_base += "Mets done=true et remplis report (markdown) quand tu as terminé.";
+    else
+        agent_system_base += "Set done=true and fill report (markdown) when finished.";
 
     std::string history;
 
@@ -270,17 +369,41 @@ void run_agent(const std::vector<std::string> &, s_config conf)
 
     for (int iter = 0; iter < conf.max_iter; iter++)
     {
+        trim_history(history, OPTIMAL_HISTORY_SIZE);
+        int remaining = conf.max_iter - iter - 1;
+
         agent_log("=== Iteration " + std::to_string(iter + 1) + "/" + std::to_string(conf.max_iter) + " ===", conf.debug);
         std::cout << BLUE << "[AGENT] Iteration " << (iter + 1) << "/" << conf.max_iter << "..." << RESET << std::flush;
 
         s_config call_conf = conf;
-        if (history.empty())
-            call_conf.prompt = agent_system;
+        std::string iteration_info;
+
+        if (fr)
+        {
+            iteration_info = "\n\n[INFO] Itération: " + std::to_string(iter + 1) + "/" + std::to_string(conf.max_iter) +
+                             ". Restantes après celle-ci: " + std::to_string(remaining) + ".";
+            if (remaining == 0)
+                iteration_info += " CECI EST TA DERNIÈRE CHANCE. Termine et fais le report.";
+        }
         else
-            call_conf.prompt = agent_system
-                + "\n\nResults so far:\n" + history
-                + (fr ? "\n\nContinue. Réponds UNIQUEMENT en JSON."
-                      : "\n\nContinue. Respond ONLY in JSON.");
+        {
+            iteration_info = "\n\n[INFO] Iteration: " + std::to_string(iter + 1) + "/" + std::to_string(conf.max_iter) +
+                             ". Remaining after this one: " + std::to_string(remaining) + ".";
+            if (remaining == 0)
+                iteration_info += " THIS IS YOUR LAST CHANCE. Finish and write the report.";
+        }
+
+        if (history.empty())
+            call_conf.prompt = agent_system_base + iteration_info;
+        else
+        {
+            std::string cont_msg;
+            if (fr)
+                cont_msg = "\n\nContinue. Réponds UNIQUEMENT en JSON.";
+            else
+                cont_msg = "\n\nContinue. Respond ONLY in JSON.";
+            call_conf.prompt = agent_system_base + iteration_info + "\n\nResults so far:\n" + history + cont_msg;
+        }
 
         std::string raw = call_ai("", call_conf);
         std::cout << "\r" << std::string(60, ' ') << "\r";
@@ -296,11 +419,16 @@ void run_agent(const std::vector<std::string> &, s_config conf)
         std::string clean_raw = raw;
         size_t js = clean_raw.find('{');
         size_t je = clean_raw.rfind('}');
+        
         if (js != std::string::npos && je != std::string::npos)
             clean_raw = clean_raw.substr(js, je - js + 1);
 
         json j;
-        try { j = json::parse(clean_raw); }
+        
+        try 
+        {
+            j = json::parse(clean_raw);
+        }
         catch (const std::exception &e)
         {
             agent_log("JSON parse error: " + std::string(e.what()), conf.debug);
@@ -319,6 +447,7 @@ void run_agent(const std::vector<std::string> &, s_config conf)
         }
 
         std::string iter_results;
+        
         if (j.contains("commands") && j["commands"].is_array())
         {
             for (const auto &c : j["commands"])
@@ -334,7 +463,8 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                     cmd  = c.value("cmd", "");
                 }
 
-                if (cmd.empty()) continue;
+                if (cmd.empty())
+                    continue;
 
                 if (is_blacklisted(cmd))
                 {
@@ -345,9 +475,10 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                 }
 
                 bool execute = false;
+                
                 if (is_bypassed(cmd) || type == "interactive")
                 {
-                    std::cout << GREEN << "[AGENT] " << (fr ? "✓ Auto: " : "✓ Auto: ") << RESET << cmd << std::endl;
+                    std::cout << GREEN << "[AGENT] ✓ Auto: " << RESET << cmd << std::endl;
                     execute = true;
                 }
                 else
@@ -360,16 +491,26 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                 }
 
                 std::string output;
+                
                 if (type == "interactive")
                 {
                     std::vector<std::string> inputs;
-					int timeout_sec = c.contains("timeout") ? c.value("timeout", conf.interactive_timeout) : conf.interactive_timeout;
+                    int timeout_sec;
+                    
+                    if (c.contains("timeout"))
+                        timeout_sec = c.value("timeout", conf.interactive_timeout);
+                    else
+                        timeout_sec = conf.interactive_timeout;
+                    
                     if (c.contains("inputs") && c["inputs"].is_array())
                         for (const auto &inp : c["inputs"])
                             inputs.push_back(inp.get<std::string>());
 
-                    std::cout << CYAN << "[AGENT] " << (fr ? "Mode interactif: " : "Interactive mode: ")
-                              << RESET << cmd << std::endl;
+                    if (fr)
+                        std::cout << CYAN << "[AGENT] Mode interactif: " << RESET << cmd << std::endl;
+                    else
+                        std::cout << CYAN << "[AGENT] Interactive mode: " << RESET << cmd << std::endl;
+
                     for (const auto &inp : inputs)
                         std::cout << CYAN << "  ↳ input: " << RESET << inp << std::endl;
 
@@ -378,41 +519,49 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                 else
                     output = exec_command(cmd, conf.debug);
 
-                std::cout << CYAN << "  → " << RESET
-                          << output.substr(0, 300)
-                          << (output.size() > 300 ? "..." : "") << std::endl;
+                std::string suffix;
+                
+                if (output.size() > 300)
+                    suffix = "...";
+                else
+                    suffix = "";
+
+                std::cout << CYAN << "  → " << RESET << output.substr(0, 300) << suffix << std::endl;
                 iter_results += "$ " + cmd + "\n" + output + "\n\n";
             }
         }
 
-        history += "[Iter " + std::to_string(iter + 1) + "]\n" + iter_results + "\n";
+        std::string iter_summary = "[Iter " + std::to_string(iter + 1) + "]\n";
+        iter_summary += "THOUGHTS: " + thoughts + "\n";
+        iter_summary += "ACTIONS & RESULTS:\n" + iter_results;
+        history += iter_summary + "\n---\n";
 
-        if (done)
+        if (done || iter == conf.max_iter - 1)
         {
-            agent_log("Done.", conf.debug);
+            agent_log("Finalizing.", conf.debug);
             std::string report_path = "reports/agent_report.md";
             std::ofstream of(report_path);
+            
             if (of.is_open())
-                of << "# Agent Report\n\n" << (report.empty() ? history : report);
+            {
+                if (!report.empty())
+                    of << report;
+                else
+                    of << "# Agent Report\n\n" << history;
+            }
             of.close();
+            
             std::cout << "\n" << BOLD << "Final Results:" << RESET << std::endl;
-            std::cout << GREEN << "[OK]   " << RESET
-                      << "Agent report (reports/agent_report.md)" << std::endl;
+            
+            if (done)
+                std::cout << GREEN << "[OK]   " << RESET << "Agent report (reports/agent_report.md)" << std::endl;
+            else
+                std::cout << YELLOW << "[TIMEOUT] " << RESET << "Max iterations reached. Saved report." << std::endl;
+            
             if (conf.format == "pdf")
                 save_as_pdf("reports/agent_report.md", conf.debug);
+            
             return;
         }
     }
-
-    agent_log("Max iterations reached.", conf.debug);
-    std::string report_path = "reports/agent_report.md";
-    std::ofstream of(report_path);
-    if (of.is_open())
-        of << "# Agent Report (partial)\n\n" << history;
-    of.close();
-    std::cout << "\n" << BOLD << "Final Results:" << RESET << std::endl;
-    std::cout << YELLOW << "[PARTIAL] " << RESET
-              << "Agent report (reports/agent_report.md)" << std::endl;
-    if (conf.format == "pdf")
-        save_as_pdf("reports/agent_report.md", conf.debug);
 }

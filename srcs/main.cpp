@@ -14,6 +14,8 @@
 
 int	main(int argc, char **argv)
 {
+	signal(SIGPIPE, SIG_IGN);
+
 	s_config								conf = {false, false, false, false, "", "", "", "", "", "", "gemini", "", "md", 0, 5, 10};
 	std::vector<std::string>				files;
 	std::vector<std::string>				results;
