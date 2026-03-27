@@ -128,8 +128,8 @@ static std::string exec_command(const std::string &cmd, const s_config &conf)
         output += "\n";
     }
 
-    if (output.size() > 8000)
-        output = output.substr(0, 4000) + "\n...(truncated)...\n" + output.substr(output.size() - 5000);
+    if (output.size() > 10000)
+        output = output.substr(0, 5000) + "\n...(truncated)...\n" + output.substr(output.size() - 5000);
 
     if (output.empty())
         output = "(no output)";
@@ -291,18 +291,30 @@ static std::string get_ls(bool debug)
     return output;
 }
 
-static void trim_history(std::string &history, size_t max_size)
-{
-    if (history.size() <= max_size) return;
+// static void trim_history(std::string &history, size_t max_size)
+// {
+    // if (history.size() <= max_size) return;
+// 
+    // size_t to_remove = history.size() - max_size;
+    // size_t cut_pos = history.find("---\n", to_remove);
+// 
+    // if (cut_pos != std::string::npos)
+        // history = "[Older iterations removed to save memory...]\n" + history.substr(cut_pos + 4);
+    // else
+        // history = "[Older iterations removed...]\n" + history.substr(to_remove);
+// }
 
-    size_t to_remove = history.size() - max_size;
-    size_t cut_pos = history.find("---\n", to_remove);
-
-    if (cut_pos != std::string::npos)
-        history = "[Older iterations removed to save memory...]\n" + history.substr(cut_pos + 4);
-    else
-        history = "[Older iterations removed...]\n" + history.substr(to_remove);
-}
+// static void trim_history(std::string &history, size_t max_size)
+// {
+    // if (history.size() <= max_size) return;
+// 
+    // size_t last = history.rfind("\n---\n");
+    // if (last == std::string::npos) { history = ""; return; }
+    // size_t prev = history.rfind("\n---\n", last - 1);
+    // if (prev == std::string::npos) prev = 0;
+// 
+    // history = "[Earlier iterations removed]\n" + history.substr(prev);
+// }
 
 void run_agent(const std::vector<std::string> &, s_config conf)
 {
@@ -366,13 +378,15 @@ void run_agent(const std::vector<std::string> &, s_config conf)
 
     for (int iter = 0; iter < conf.max_iter; iter++)
     {
-        trim_history(history, OPTIMAL_HISTORY_SIZE);
+		// Dans run_agent, après avoir construit call_conf.prompt :
+        // trim_history(history, OPTIMAL_HISTORY_SIZE);
         int remaining = conf.max_iter - iter - 1;
 
         agent_log("=== Iteration " + std::to_string(iter + 1) + "/" + std::to_string(conf.max_iter) + " ===", conf.debug);
-        std::cout << BLUE << "[AGENT] Iteration " << (iter + 1) << "/" << conf.max_iter << "..." << RESET << std::flush;
+        std::cout << BLUE << "[AGENT] Iteration " << (iter + 1) << "/" << conf.max_iter << "...\n" << RESET << std::flush;
 
         s_config call_conf = conf;
+		agent_log("Prompt size: " + std::to_string(call_conf.prompt.size()) + " chars", conf.debug);
         std::string iteration_info;
 
         if (fr)
