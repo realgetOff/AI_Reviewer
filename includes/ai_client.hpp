@@ -75,7 +75,7 @@ void		load_config(s_config &conf);
 void		display_progress(size_t cur, size_t tot);
 void		scan_path(const std::string &p, std::vector<std::string> &files);
 void		write_debug(const std::string &msg, bool enabled);
-int     	check_commands(std::string command);
+int     	check_commands(int argc, char **argv);
 std::string	process_file(std::string f, s_config conf);
 bool 		save_as_pdf(const std::string& md_filename, bool debug);
 void		update_config_file(const std::string &key, const std::string &value);

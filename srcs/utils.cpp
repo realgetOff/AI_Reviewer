@@ -196,11 +196,14 @@ void	display_progress(size_t cur, size_t tot)
 	std::cout << "] " << (tot > 0 ? (cur * 100 / tot) : 100) << "%" << std::flush;
 }
 
-int check_commands(std::string command)
+int check_commands(int argc, char **argv)
 {
 	char* home = getenv("HOME");
 	if (!home) return (1);
 	std::string path = std::string(home) + "/.ai_config.json";
+	if (argc < 2 || !argv || !argv[1])
+		return (2);
+	std::string command = argv[1];
 
 	if (command == "config")
 		return (system(("vim " + path).c_str()));
@@ -228,6 +231,9 @@ int check_commands(std::string command)
 	}
 	if (command == "-update")
 	{
+		bool dev = (argc > 2 && argv[2] && std::string(argv[2]) == "-dev");
+		if (dev)
+			return (system("curl -sSL https://raw.githubusercontent.com/realgetOff/AI_Reviewer/dev/install.sh | bash -s -- --dev"));
 		return (system("curl -sSL https://raw.githubusercontent.com/realgetOff/AI_Reviewer/main/install.sh | bash"));
 	}
 	return(2);

@@ -9,8 +9,15 @@ REPO_URL="https://github.com/realgetOff/AI_Reviewer.git"
 CACHE_DIR="$HOME/.cache/ai_reviewer"
 BIN_DIR="$HOME/bin"
 CONFIG_FILE="$HOME/.ai_config.json"
+BRANCH="main"
 
-echo -e "${BLUE}==> Preparing installation...${RESET}"
+for arg in "$@"; do
+  if [[ "$arg" == "--dev" || "$arg" == "-dev" ]]; then
+    BRANCH="dev"
+  fi
+done
+
+echo -e "${BLUE}==> Preparing installation (${BRANCH})...${RESET}"
 
 if ! command -v curl &> /dev/null; then
     echo -e "${RED}Error: curl is required but not installed.${RESET}"
@@ -34,12 +41,14 @@ if [ -d "$CACHE_DIR/.git" ]; then
     echo -e "${BLUE}==> Updating existing cache...${RESET}"
     pushd "$CACHE_DIR" > /dev/null
     git fetch origin || { echo -e "${RED}Fetch failed${RESET}"; exit 1; }
-    git reset --hard origin/main || { echo -e "${RED}Reset failed${RESET}"; exit 1; }
+    git reset --hard "origin/${BRANCH}" || { echo -e "${RED}Reset failed${RESET}"; exit 1; }
 else
     echo -e "${BLUE}==> Cloning repository...${RESET}"
     mkdir -p "$CACHE_DIR"
     git clone "$REPO_URL" "$CACHE_DIR" || { echo -e "${RED}Clone failed${RESET}"; exit 1; }
     pushd "$CACHE_DIR" > /dev/null
+    git fetch origin "${BRANCH}" &>/dev/null || true
+    git checkout "${BRANCH}" &>/dev/null || true
 fi
 
 VERSION=$(grep "#define CURRENT_VERSION" includes/ai_client.hpp | cut -d'"' -f2)

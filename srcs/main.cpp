@@ -24,7 +24,7 @@ int	main(int argc, char **argv)
 
 	check_update();
 	if (argc > 1)
-		if (check_commands(argv[1]) != 2)
+		if (check_commands(argc, argv) != 2)
 			return (0);
 	while ((opt = getopt(argc, argv, "t:i:I:agdhms:l:f:c:")) != -1)
 	{
