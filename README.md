@@ -71,6 +71,7 @@ Use this guide to configure your `config.json`. Copy the **API URL** and the **M
 | **OpenAI (GPT-4o)** | `openai` | `https://api.openai.com/v1/chat/completions` | Bearer Token |
 | **Anthropic (Claude 3.5)** | `claude` | `https://api.anthropic.com/v1/messages` | x-api-key |
 | **Mistral AI** | `mistral` | `https://api.mistral.ai/v1/chat/completions` | Bearer Token |
+| **Zhipu AI** | `glm` | `https://open.bigmodel.cn/api/paas/v4/chat/completions` | Bearer Token |
 
 *Note: For Gemini **only**, you must leave `model_name: ""` (empty) because the model is already specified within the API URL (ofc you can change `gemini-2.5-flash` by any of available models (check `air -m`))*
 
@@ -96,4 +97,6 @@ If you want to use Gemini-2.5-Flash, your `config.json` should look like this:
   }
 }
 ```
+
+(use the chinese model, alternative to claude and almost free;)
 
