@@ -97,16 +97,16 @@ static bool ask_permission(const std::string &cmd, bool fr)
     return (c == 'y' || c == 'Y' || c == 'o' || c == 'O');
 }
 
-static std::string exec_command(const std::string &cmd, bool debug)
+static std::string exec_command(const std::string &cmd, const s_config &conf)
 {
     std::string output;
     char        buf[512];
     FILE        *pipe;
     int         ret;
 
-    agent_log("Running shell: " + cmd, debug);
-    
-    std::string full_cmd = "timeout 10s bash -c '(" + cmd + " </dev/null) 2>&1'";
+    std::string t_str = std::to_string(conf.interactive_timeout);
+    agent_log("Running shell: " + cmd, conf.debug);
+    std::string full_cmd = "timeout " + t_str + "s bash -c '(" + cmd + " </dev/null) 2>&1'";
     
     pipe = popen(full_cmd.c_str(), "r");
     if (!pipe)
@@ -118,7 +118,7 @@ static std::string exec_command(const std::string &cmd, bool debug)
     ret = pclose(pipe);
 
     if (WEXITSTATUS(ret) == 124)
-        output += "\n(timeout: killed after 10s)";
+        output += "\n(timeout: killed after " + t_str + "s)";
     else if (WIFSIGNALED(ret))
     {
         int sig = WTERMSIG(ret);
@@ -128,18 +128,15 @@ static std::string exec_command(const std::string &cmd, bool debug)
         output += "\n";
     }
 
-    if (output.size() > 10000)
-        output = output.substr(0, 5000) + "\n...(truncated)...\n" + output.substr(output.size() - 5000);
+    if (output.size() > 8000)
+        output = output.substr(0, 4000) + "\n...(truncated)...\n" + output.substr(output.size() - 5000);
+
     if (output.empty())
         output = "(no output)";
 
-    std::string preview;
-    if (output.size() > 200)
-        preview = output.substr(0, 200);
-    else
-        preview = output;
+    std::string preview = (output.size() > 200) ? output.substr(0, 200) : output;
+    agent_log("Output: " + preview, conf.debug);
     
-    agent_log("Output: " + preview, debug);
     return (output);
 }
 
@@ -514,10 +511,10 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                     for (const auto &inp : inputs)
                         std::cout << CYAN << "  ↳ input: " << RESET << inp << std::endl;
 
-                    output = exec_interactive(cmd, inputs, timeout_sec, conf.debug);
+                    output = exec_interactive(cmd, inputs, conf.interactive_timeout, conf.debug);
                 }
                 else
-                    output = exec_command(cmd, conf.debug);
+                    output = exec_command(cmd, conf);
 
                 std::string suffix;
                 
