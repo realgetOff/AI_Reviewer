@@ -115,7 +115,7 @@ static std::string exec_command(const std::string &cmd, const s_config &conf)
     while (fgets(buf, sizeof(buf), pipe))
         output += buf;
 
-    ret = pclose(pipe);
+ret = pclose(pipe);
 
     if (WEXITSTATUS(ret) == 124)
         output += "\n(timeout: killed after " + t_str + "s)";
@@ -138,6 +138,21 @@ static std::string exec_command(const std::string &cmd, const s_config &conf)
     agent_log("Output: " + preview, conf.debug);
     
     return (output);
+}
+
+static std::string sanitize_output(const std::string& str) {
+    std::string clean;
+    clean.reserve(str.length());
+    for (unsigned char c : str) {
+        // On garde l'ASCII imprimable, les tabs, et les retours à la ligne
+        if ((c >= 32 && c <= 126) || c == '\n' || c == '\r' || c == '\t') {
+            clean += c;
+        } else {
+            // On remplace l'octet invalide (comme ton 0x99) par un espace ou '?'
+            clean += ' '; 
+        }
+    }
+    return clean;
 }
 
 static std::string exec_interactive(const std::string &cmd,
@@ -267,6 +282,8 @@ static std::string exec_interactive(const std::string &cmd,
     if (output.empty())
         output = "(no output)";
 
+	output = sanitize_output(output);
+
     std::string preview;
     if (output.size() > 200)
         preview = output.substr(0, 200);
@@ -302,18 +319,6 @@ static std::string get_ls(bool debug)
         // history = "[Older iterations removed to save memory...]\n" + history.substr(cut_pos + 4);
     // else
         // history = "[Older iterations removed...]\n" + history.substr(to_remove);
-// }
-
-// static void trim_history(std::string &history, size_t max_size)
-// {
-    // if (history.size() <= max_size) return;
-// 
-    // size_t last = history.rfind("\n---\n");
-    // if (last == std::string::npos) { history = ""; return; }
-    // size_t prev = history.rfind("\n---\n", last - 1);
-    // if (prev == std::string::npos) prev = 0;
-// 
-    // history = "[Earlier iterations removed]\n" + history.substr(prev);
 // }
 
 void run_agent(const std::vector<std::string> &, s_config conf)
@@ -378,8 +383,6 @@ void run_agent(const std::vector<std::string> &, s_config conf)
 
     for (int iter = 0; iter < conf.max_iter; iter++)
     {
-		// Dans run_agent, après avoir construit call_conf.prompt :
-        // trim_history(history, OPTIMAL_HISTORY_SIZE);
         int remaining = conf.max_iter - iter - 1;
 
         agent_log("=== Iteration " + std::to_string(iter + 1) + "/" + std::to_string(conf.max_iter) + " ===", conf.debug);
