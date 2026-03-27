@@ -13,7 +13,7 @@
 #ifndef AI_CLIENT_HPP
 #define AI_CLIENT_HPP
 
-#define CURRENT_VERSION "v1.3.0"
+#define CURRENT_VERSION "v1.3.1"
 #define OPTIMAL_HISTORY_SIZE 8000
 
 #define RESET   "\033[0m"
@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <fcntl.h>
 #include <future>
 #include <signal.h>
 #include <fstream>

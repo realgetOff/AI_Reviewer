@@ -11,15 +11,6 @@
 /* ************************************************************************** */
 
 #include "ai_client.hpp"
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <cstdio>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/select.h>
-#include <fcntl.h>
-#include <signal.h>
 
 static const std::vector<std::string> BYPASS =
 {
@@ -115,7 +106,7 @@ static std::string exec_command(const std::string &cmd, const s_config &conf)
     while (fgets(buf, sizeof(buf), pipe))
         output += buf;
 
-ret = pclose(pipe);
+    ret = pclose(pipe);
 
     if (WEXITSTATUS(ret) == 124)
         output += "\n(timeout: killed after " + t_str + "s)";
@@ -127,9 +118,6 @@ ret = pclose(pipe);
             output += " (Segmentation fault)";
         output += "\n";
     }
-
-    // if (output.size() > 10000)
-        // output = output.substr(0, 5000) + "\n...(truncated)...\n" + output.substr(output.size() - 5000);
 
     if (output.empty())
         output = "(no output)";
@@ -145,13 +133,68 @@ static std::string sanitize_output(const std::string& str)
     std::string clean;
     clean.reserve(str.length());
     for (unsigned char c : str)
-	{
+    {
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r' || c == '\t')
             clean += c;
-		else
+        else
             clean += '?'; 
     }
     return clean;
+}
+
+// Escape control characters inside JSON string values so the parser
+// does not choke on raw newlines / tabs that the LLM sometimes emits.
+static std::string fix_json_strings(const std::string &raw)
+{
+    std::string out;
+    out.reserve(raw.size());
+    bool in_string = false;
+    bool escaped   = false;
+
+    for (size_t i = 0; i < raw.size(); ++i)
+    {
+        char c = raw[i];
+
+        if (escaped)
+        {
+            out += c;
+            escaped = false;
+            continue;
+        }
+
+        if (c == '\\' && in_string)
+        {
+            out += c;
+            escaped = true;
+            continue;
+        }
+
+        if (c == '"')
+        {
+            in_string = !in_string;
+            out += c;
+            continue;
+        }
+
+        if (in_string)
+        {
+            // These characters are forbidden unescaped inside JSON strings
+            if (c == '\n')      { out += "\\n";  continue; }
+            if (c == '\r')      { out += "\\r";  continue; }
+            if (c == '\t')      { out += "\\t";  continue; }
+            if ((unsigned char)c < 0x20)
+            {
+                // Other control characters: emit \uXXXX
+                char esc[8];
+                snprintf(esc, sizeof(esc), "\\u%04x", (unsigned char)c);
+                out += esc;
+                continue;
+            }
+        }
+
+        out += c;
+    }
+    return out;
 }
 
 static std::string exec_interactive(const std::string &cmd,
@@ -279,11 +322,11 @@ static std::string exec_interactive(const std::string &cmd,
     close(out_pipe[0]);
 
     if (output.empty())
-	{
-		output = "(no output)";
-	}
+    {
+        output = "(no output)";
+    }
 
-	output = sanitize_output(output);
+    output = sanitize_output(output);
 
     std::string preview;
     if (output.size() > 200)
@@ -300,7 +343,7 @@ static std::string get_ls(bool debug)
     agent_log("Running initial ls -la", debug);
     FILE *pipe = popen("ls -la 2>&1", "r");
     if (!pipe)
-		return ("(ls failed)");
+        return ("(ls failed)");
     std::string output;
     char buf[512];
     while (fgets(buf, sizeof(buf), pipe))
@@ -308,19 +351,6 @@ static std::string get_ls(bool debug)
     pclose(pipe);
     return output;
 }
-
-// static void trim_history(std::string &history, size_t max_size)
-// {
-    // if (history.size() <= max_size) return;
-// 
-    // size_t to_remove = history.size() - max_size;
-    // size_t cut_pos = history.find("---\n", to_remove);
-// 
-    // if (cut_pos != std::string::npos)
-        // history = "[Older iterations removed to save memory...]\n" + history.substr(cut_pos + 4);
-    // else
-        // history = "[Older iterations removed...]\n" + history.substr(to_remove);
-// }
 
 void run_agent(const std::vector<std::string> &, s_config conf)
 {
@@ -436,12 +466,17 @@ void run_agent(const std::vector<std::string> &, s_config conf)
 
         agent_log("Raw response preview: " + raw.substr(0, 300), conf.debug);
 
+        // Extract the JSON object from the raw response
         std::string clean_raw = raw;
         size_t js = clean_raw.find('{');
         size_t je = clean_raw.rfind('}');
         
         if (js != std::string::npos && je != std::string::npos)
             clean_raw = clean_raw.substr(js, je - js + 1);
+
+        // Fix raw newlines / control chars inside JSON string values
+        // before handing to the parser — the LLM sometimes emits them.
+        clean_raw = fix_json_strings(clean_raw);
 
         json j;
         
