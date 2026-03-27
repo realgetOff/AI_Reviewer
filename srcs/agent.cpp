@@ -128,8 +128,8 @@ ret = pclose(pipe);
         output += "\n";
     }
 
-    if (output.size() > 10000)
-        output = output.substr(0, 5000) + "\n...(truncated)...\n" + output.substr(output.size() - 5000);
+    // if (output.size() > 10000)
+        // output = output.substr(0, 5000) + "\n...(truncated)...\n" + output.substr(output.size() - 5000);
 
     if (output.empty())
         output = "(no output)";
@@ -140,17 +140,16 @@ ret = pclose(pipe);
     return (output);
 }
 
-static std::string sanitize_output(const std::string& str) {
+static std::string sanitize_output(const std::string& str)
+{
     std::string clean;
     clean.reserve(str.length());
-    for (unsigned char c : str) {
-        // On garde l'ASCII imprimable, les tabs, et les retours à la ligne
-        if ((c >= 32 && c <= 126) || c == '\n' || c == '\r' || c == '\t') {
+    for (unsigned char c : str)
+	{
+        if ((c >= 32 && c <= 126) || c == '\n' || c == '\r' || c == '\t')
             clean += c;
-        } else {
-            // On remplace l'octet invalide (comme ton 0x99) par un espace ou '?'
-            clean += ' '; 
-        }
+		else
+            clean += '?'; 
     }
     return clean;
 }
@@ -280,7 +279,9 @@ static std::string exec_interactive(const std::string &cmd,
     close(out_pipe[0]);
 
     if (output.empty())
-        output = "(no output)";
+	{
+		output = "(no output)";
+	}
 
 	output = sanitize_output(output);
 
@@ -389,7 +390,6 @@ void run_agent(const std::vector<std::string> &, s_config conf)
         std::cout << BLUE << "[AGENT] Iteration " << (iter + 1) << "/" << conf.max_iter << "...\n" << RESET << std::flush;
 
         s_config call_conf = conf;
-		agent_log("Prompt size: " + std::to_string(call_conf.prompt.size()) + " chars", conf.debug);
         std::string iteration_info;
 
         if (fr)
@@ -418,6 +418,12 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                 cont_msg = "\n\nContinue. Respond ONLY in JSON.";
             call_conf.prompt = agent_system_base + iteration_info + "\n\nResults so far:\n" + history + cont_msg;
         }
+
+        agent_log(
+            "Sending prompt size: " + std::to_string(call_conf.prompt.size()) +
+            " bytes (~" + std::to_string(call_conf.prompt.size() / 4) + " tokens est.)",
+            conf.debug
+        );
 
         std::string raw = call_ai("", call_conf);
         std::cout << "\r" << std::string(60, ' ') << "\r";
