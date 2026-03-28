@@ -10,6 +10,18 @@
 /*                                                                            */
 /* ************************************************************************** */
 
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   agent.cpp                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: mforest- <marvin@d42.fr>                   +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/03/26 22:08:06 by mforest-          #+#    #+#             */
+/*   Updated: 2026/03/26 22:08:06 by mforest-         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "ai_client.hpp"
 
 static const std::vector<std::string> BYPASS =
@@ -63,7 +75,6 @@ void check_child_status(int status, std::string &output)
     {
         int sig = WTERMSIG(status);
         output += "\n[CRASH] Process terminated by signal: " + std::to_string(sig) + "\n";
-
         if (sig == 11)
             output += "Reason: Segmentation fault\n";
         else if (sig == 6)
@@ -79,7 +90,7 @@ void check_child_status(int status, std::string &output)
 
 static bool ask_permission(const std::string &cmd, bool fr)
 {
-    std::cout << YELLOW << (fr ? "[AGENT] Exécuter? " : "[AGENT] Execute? ") << RESET
+    std::cout << YELLOW << (fr ? "[AGENT] Executer? " : "[AGENT] Execute? ") << RESET
               << "`" << cmd << "`"
               << YELLOW << (fr ? " (o/n): " : " (y/n): ") << RESET;
     char c;
@@ -98,7 +109,7 @@ static std::string exec_command(const std::string &cmd, const s_config &conf)
     std::string t_str = std::to_string(conf.interactive_timeout);
     agent_log("Running shell: " + cmd, conf.debug);
     std::string full_cmd = "timeout " + t_str + "s bash -c '(" + cmd + " </dev/null) 2>&1'";
-    
+
     pipe = popen(full_cmd.c_str(), "r");
     if (!pipe)
         return ("(popen failed)");
@@ -124,11 +135,11 @@ static std::string exec_command(const std::string &cmd, const s_config &conf)
 
     std::string preview = (output.size() > 200) ? output.substr(0, 200) : output;
     agent_log("Output: " + preview, conf.debug);
-    
+
     return (output);
 }
 
-static std::string sanitize_output(const std::string& str)
+static std::string sanitize_output(const std::string &str)
 {
     std::string clean;
     clean.reserve(str.length());
@@ -137,7 +148,7 @@ static std::string sanitize_output(const std::string& str)
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r' || c == '\t')
             clean += c;
         else
-            clean += '?'; 
+            clean += '?';
     }
     return clean;
 }
@@ -146,28 +157,32 @@ static std::string strip_markdown_fence(const std::string &raw)
 {
     std::string s = raw;
 
-    for (const auto &tag : {"```json", "```"})
+    const char *tags[] = { "```json", "```", nullptr };
+    for (int t = 0; tags[t]; ++t)
     {
-        size_t pos = s.find(tag);
-        if (pos != std::string::npos)
-        {
-            size_t brace = s.find('{');
-            if (brace == std::string::npos || pos < brace)
-            {
-                s.erase(pos, strlen(tag));
-                while (pos < s.size() && (s[pos] == ' ' || s[pos] == '\n' || s[pos] == '\r'))
-                    s.erase(pos, 1);
-                break;
-            }
-        }
+        size_t pos = s.find(tags[t]);
+        if (pos == std::string::npos)
+            continue;
+        size_t brace = s.find('{');
+        if (brace != std::string::npos && pos >= brace)
+            continue;
+        s.erase(pos, strlen(tags[t]));
+        while (pos < s.size() && (s[pos] == ' ' || s[pos] == '\n' || s[pos] == '\r'))
+            s.erase(pos, 1);
+        break;
     }
 
-    size_t last = s.rfind("```");
-    if (last != std::string::npos && last > s.rfind('}'))
+    size_t last   = s.rfind("```");
+    size_t rbrace = s.rfind('}');
+    if (last  != std::string::npos &&
+        rbrace != std::string::npos &&
+        last > rbrace)
         s.erase(last);
 
     return s;
 }
+
+// NOTE: temp fix by claude
 
 static std::string fix_json_strings(const std::string &raw)
 {
@@ -191,13 +206,13 @@ static std::string fix_json_strings(const std::string &raw)
         {
             unsigned char next = (i + 1 < raw.size()) ? (unsigned char)raw[i + 1] : 0;
 
-            if (next == '"' || next == '\\' || next == '/'  ||
-                next == 'b' || next == 'f'  || next == 'n'  ||
-                next == 'r' || next == 't'  || next == 'u')
+            if (next == '"'  || next == '\\' || next == '/' ||
+                next == 'b'  || next == 'f'  || next == 'n' ||
+                next == 'r'  || next == 't'  || next == 'u')
             {
                 out += (char)c;
                 out += (char)next;
-                i++;
+                ++i;
                 continue;
             }
 
@@ -218,7 +233,7 @@ static std::string fix_json_strings(const std::string &raw)
         if (c < 0x20)
         {
             char esc[8];
-            snprintf(esc, sizeof(esc), "\\u%04x", c);
+            snprintf(esc, sizeof(esc), "\\u%04x", (unsigned int)c);
             out += esc;
             continue;
         }
@@ -226,6 +241,64 @@ static std::string fix_json_strings(const std::string &raw)
         out += (char)c;
     }
     return out;
+}
+
+static std::string extract_field(const std::string &src, const std::string &key)
+{
+    std::string needle = "\"" + key + "\"";
+    size_t pos = src.find(needle);
+    if (pos == std::string::npos)
+        return "";
+    pos += needle.size();
+
+    while (pos < src.size() &&
+           (src[pos] == ' ' || src[pos] == ':' || src[pos] == '\t'))
+        ++pos;
+    if (pos >= src.size())
+        return "";
+
+    if (src[pos] == '"')
+    {
+        ++pos;
+        std::string val;
+        while (pos < src.size())
+        {
+            char c = src[pos];
+
+            if (c == '\\' && pos + 1 < src.size())
+            {
+                val += c;
+                val += src[pos + 1];
+                pos += 2;
+                continue;
+            }
+
+            if (c == '"')
+            {
+                size_t peek = pos + 1;
+                while (peek < src.size() &&
+                       (src[peek] == ' ' || src[peek] == '\t'))
+                    ++peek;
+                if (peek >= src.size()  ||
+                    src[peek] == ','    ||
+                    src[peek] == '}'    ||
+                    src[peek] == '\n'   ||
+                    src[peek] == '\r')
+                    break;
+                val += "\\\"";
+                ++pos;
+                continue;
+            }
+
+            val += c;
+            ++pos;
+        }
+        return val;
+    }
+
+    if (src[pos] == 't') return "true";
+    if (src[pos] == 'f') return "false";
+    return "";
 }
 
 static std::string exec_interactive(const std::string &cmd,
@@ -267,7 +340,7 @@ static std::string exec_interactive(const std::string &cmd,
         while (iss >> part)
             parts.push_back(part);
 
-        std::vector<char*> argv_vec;
+        std::vector<char *> argv_vec;
         for (auto &p : parts)
             argv_vec.push_back(&p[0]);
         argv_vec.push_back(nullptr);
@@ -295,10 +368,8 @@ static std::string exec_interactive(const std::string &cmd,
         int status;
         if (waitpid(pid, &status, WNOHANG) != 0)
             break;
-
         usleep(200000);
         read_available();
-
         std::string line = inp + "\n";
         if (write(in_pipe[1], line.c_str(), line.size()) == -1)
             break;
@@ -308,7 +379,7 @@ static std::string exec_interactive(const std::string &cmd,
     close(in_pipe[1]);
 
     int elapsed = 0;
-    int status = 0;
+    int status  = 0;
     bool exited = false;
 
     while (elapsed < timeout_sec * 10)
@@ -321,7 +392,7 @@ static std::string exec_interactive(const std::string &cmd,
             exited = true;
             break;
         }
-        elapsed++;
+        ++elapsed;
     }
 
     if (!exited)
@@ -345,7 +416,8 @@ static std::string exec_interactive(const std::string &cmd,
         }
         else if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
         {
-            output += "\n[EXIT] Process finished with error code " + std::to_string(WEXITSTATUS(status)) + "\n";
+            output += "\n[EXIT] Process finished with error code "
+                      + std::to_string(WEXITSTATUS(status)) + "\n";
         }
     }
 
@@ -353,20 +425,13 @@ static std::string exec_interactive(const std::string &cmd,
     close(out_pipe[0]);
 
     if (output.empty())
-    {
         output = "(no output)";
-    }
 
     output = sanitize_output(output);
 
-    std::string preview;
-    if (output.size() > 200)
-        preview = output.substr(0, 200);
-    else
-        preview = output;
-
+    std::string preview = (output.size() > 200) ? output.substr(0, 200) : output;
     agent_log("Interactive output: " + preview, debug);
-    return (output);
+    return output;
 }
 
 static std::string get_ls(bool debug)
@@ -389,7 +454,6 @@ void run_agent(const std::vector<std::string> &, s_config conf)
 
     char cwd_buf[1024];
     std::string cwd;
-
     if (getcwd(cwd_buf, sizeof(cwd_buf)))
         cwd = cwd_buf;
     else
@@ -401,69 +465,83 @@ void run_agent(const std::vector<std::string> &, s_config conf)
     std::string ls_output = get_ls(conf.debug);
     agent_log("Directory:\n" + ls_output, conf.debug);
 
-    std::string agent_system_base = conf.prompt + "\n\nWorking directory: " + cwd + "\n\nDirectory contents:\n" + ls_output + "\n\n";
+    std::string agent_system_base =
+        conf.prompt +
+        "\n\nWorking directory: " + cwd +
+        "\n\nDirectory contents:\n" + ls_output + "\n\n";
 
     if (fr)
     {
-        agent_system_base += "Tu es un agent autonome. Explore librement : ls, cat, make, compile, teste.\n"
-                             "Ne suppose pas le contenu des fichiers — lis-les avec cat/head si nécessaire.\n\n"
-                             "IMPORTANT : avant d'exécuter un binaire, réfléchis :\n"
-                             "- Est-ce qu'il attend une entrée utilisateur en boucle ? (shell, REPL, jeu...)\n"
-                             "- Si OUI → utilise le type 'interactive' et prépare tes inputs à l'avance\n"
-                             "- Si NON → utilise le type 'shell'\n\n"
-                             "Réponds UNIQUEMENT en JSON valide :\n";
+        agent_system_base +=
+            "Tu es un agent autonome. Explore librement : ls, cat, make, compile, teste.\n"
+            "Ne suppose pas le contenu des fichiers lises-les avec cat/head si necessaire.\n\n"
+            "IMPORTANT : avant d'executer un binaire, reflechis :\n"
+            "- Est-ce qu'il attend une entree utilisateur en boucle ? (shell, REPL, jeu...)\n"
+            "- Si OUI utilise le type 'interactive' et prepare tes inputs a l'avance\n"
+            "- Si NON utilise le type 'shell'\n\n"
+            "Reponds UNIQUEMENT en JSON valide :\n";
     }
     else
     {
-        agent_system_base += "You are an autonomous agent. Explore freely: ls, cat, make, compile, test.\n"
-                             "Do NOT assume file contents — read them with cat/head if needed.\n\n"
-                             "IMPORTANT: before running a binary, think:\n"
-                             "- Does it wait for user input in a loop? (shell, REPL, game...)\n"
-                             "- If YES → use type 'interactive' and prepare your inputs in advance\n"
-                             "- If NO  → use type 'shell'\n\n"
-                             "Respond ONLY in valid JSON:\n";
+        agent_system_base +=
+            "You are an autonomous agent. Explore freely: ls, cat, make, compile, test.\n"
+            "Do NOT assume file contents - read them with cat/head if needed.\n\n"
+            "IMPORTANT: before running a binary, think:\n"
+            "- Does it wait for user input in a loop? (shell, REPL, game...)\n"
+            "- If YES use type 'interactive' and prepare your inputs in advance\n"
+            "- If NO  use type 'shell'\n\n"
+            "Respond ONLY in valid JSON:\n";
     }
 
-    agent_system_base += "{\n"
-                         "  \"thoughts\": \"...\",\n"
-                         "  \"commands\": [\n"
-                         "    {\"type\": \"shell\", \"cmd\": \"make\"},\n"
-                         "    {\"type\": \"interactive\", \"cmd\": \"./minishell\", \"inputs\": [\"echo hi\", \"exit\"], \"timeout\": 10}\n"
-                         "  ],\n"
-                         "  \"done\": false,\n"
-                         "  \"report\": \"\"\n"
-                         "}\n";
+    agent_system_base +=
+        "{\n"
+        "  \"thoughts\": \"...\",\n"
+        "  \"commands\": [\n"
+        "    {\"type\": \"shell\", \"cmd\": \"make\"},\n"
+        "    {\"type\": \"interactive\", \"cmd\": \"./minishell\","
+        " \"inputs\": [\"echo hi\", \"exit\"], \"timeout\": 10}\n"
+        "  ],\n"
+        "  \"done\": false,\n"
+        "  \"report\": \"\"\n"
+        "}\n";
 
     if (fr)
-        agent_system_base += "Mets done=true et remplis report (markdown) quand tu as terminé.";
+        agent_system_base += "Mets done=true et remplis report (markdown) quand tu as termine.";
     else
         agent_system_base += "Set done=true and fill report (markdown) when finished.";
 
     std::string history;
 
-    std::cout << BLUE << "[AGENT] Starting... (max " << conf.max_iter << " iterations)" << RESET << std::endl;
+    std::cout << BLUE << "[AGENT] Starting... (max " << conf.max_iter
+              << " iterations)" << RESET << std::endl;
 
-    for (int iter = 0; iter < conf.max_iter; iter++)
+    for (int iter = 0; iter < conf.max_iter; ++iter)
     {
         int remaining = conf.max_iter - iter - 1;
 
-        agent_log("=== Iteration " + std::to_string(iter + 1) + "/" + std::to_string(conf.max_iter) + " ===", conf.debug);
-        std::cout << BLUE << "[AGENT] Iteration " << (iter + 1) << "/" << conf.max_iter << "...\n" << RESET << std::flush;
+        agent_log("=== Iteration " + std::to_string(iter + 1) + "/" +
+                  std::to_string(conf.max_iter) + " ===", conf.debug);
+        std::cout << BLUE << "[AGENT] Iteration " << (iter + 1) << "/"
+                  << conf.max_iter << "...\n" << RESET << std::flush;
 
         s_config call_conf = conf;
         std::string iteration_info;
 
         if (fr)
         {
-            iteration_info = "\n\n[INFO] Itération: " + std::to_string(iter + 1) + "/" + std::to_string(conf.max_iter) +
-                             ". Restantes après celle-ci: " + std::to_string(remaining) + ".";
+            iteration_info =
+                "\n\n[INFO] Iteration: " + std::to_string(iter + 1) + "/" +
+                std::to_string(conf.max_iter) +
+                ". Restantes apres celle-ci: " + std::to_string(remaining) + ".";
             if (remaining == 0)
-                iteration_info += " CECI EST TA DERNIÈRE CHANCE. Termine et fais le report.";
+                iteration_info += " CECI EST TA DERNIERE CHANCE. Termine et fais le report.";
         }
         else
         {
-            iteration_info = "\n\n[INFO] Iteration: " + std::to_string(iter + 1) + "/" + std::to_string(conf.max_iter) +
-                             ". Remaining after this one: " + std::to_string(remaining) + ".";
+            iteration_info =
+                "\n\n[INFO] Iteration: " + std::to_string(iter + 1) + "/" +
+                std::to_string(conf.max_iter) +
+                ". Remaining after this one: " + std::to_string(remaining) + ".";
             if (remaining == 0)
                 iteration_info += " THIS IS YOUR LAST CHANCE. Finish and write the report.";
         }
@@ -472,24 +550,22 @@ void run_agent(const std::vector<std::string> &, s_config conf)
             call_conf.prompt = agent_system_base + iteration_info;
         else
         {
-            std::string cont_msg;
-            if (fr)
-                cont_msg = "\n\nContinue. Réponds UNIQUEMENT en JSON.";
-            else
-                cont_msg = "\n\nContinue. Respond ONLY in JSON.";
-            call_conf.prompt = agent_system_base + iteration_info + "\n\nResults so far:\n" + history + cont_msg;
+            std::string cont_msg = fr
+                ? "\n\nContinue. Reponds UNIQUEMENT en JSON."
+                : "\n\nContinue. Respond ONLY in JSON.";
+            call_conf.prompt = agent_system_base + iteration_info +
+                               "\n\nResults so far:\n" + history + cont_msg;
         }
 
         agent_log(
             "Sending prompt size: " + std::to_string(call_conf.prompt.size()) +
             " bytes (~" + std::to_string(call_conf.prompt.size() / 4) + " tokens est.)",
-            conf.debug
-        );
+            conf.debug);
 
         std::string raw = call_ai("", call_conf);
         std::cout << "\r" << std::string(60, ' ') << "\r";
 
-        if (raw.substr(0, 5) == "Error")
+        if (raw.size() >= 5 && raw.substr(0, 5) == "Error")
         {
             std::cerr << RED << "[AGENT] API error: " << raw << RESET << std::endl;
             break;
@@ -507,21 +583,43 @@ void run_agent(const std::vector<std::string> &, s_config conf)
         clean_raw = fix_json_strings(clean_raw);
 
         json j;
-        
-        try 
+        bool parse_ok = false;
+
+        try
         {
             j = json::parse(clean_raw);
+            parse_ok = true;
         }
         catch (const std::exception &e)
         {
             agent_log("JSON parse error: " + std::string(e.what()), conf.debug);
-            std::cerr << RED << "[AGENT] Could not parse response as JSON." << RESET << std::endl;
-            break;
+            agent_log("Attempting field extraction fallback...", conf.debug);
         }
 
-        std::string thoughts = j.value("thoughts", "");
-        bool done            = j.value("done", false);
-        std::string report   = j.value("report", "");
+        std::string thoughts, report;
+        bool done = false;
+
+        if (parse_ok)
+        {
+            thoughts = j.value("thoughts", "");
+            done     = j.value("done", false);
+            report   = j.value("report", "");
+        }
+        else
+        {
+            thoughts             = extract_field(clean_raw, "thoughts");
+            report               = extract_field(clean_raw, "report");
+            std::string done_str = extract_field(clean_raw, "done");
+            done                 = (done_str == "true");
+
+            if (thoughts.empty() && report.empty())
+            {
+                std::cerr << RED << "[AGENT] Could not parse response as JSON."
+                          << RESET << std::endl;
+                break;
+            }
+            agent_log("Fallback extraction succeeded.", conf.debug);
+        }
 
         if (!thoughts.empty())
         {
@@ -530,8 +628,8 @@ void run_agent(const std::vector<std::string> &, s_config conf)
         }
 
         std::string iter_results;
-        
-        if (j.contains("commands") && j["commands"].is_array())
+
+        if (parse_ok && j.contains("commands") && j["commands"].is_array())
         {
             for (const auto &c : j["commands"])
             {
@@ -558,10 +656,10 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                 }
 
                 bool execute = false;
-                
+
                 if (is_bypassed(cmd) || type == "interactive")
                 {
-                    std::cout << GREEN << "[AGENT] ✓ Auto: " << RESET << cmd << std::endl;
+                    std::cout << GREEN << "[AGENT] Auto: " << RESET << cmd << std::endl;
                     execute = true;
                 }
                 else
@@ -574,17 +672,15 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                 }
 
                 std::string output;
-                
+
                 if (type == "interactive")
                 {
                     std::vector<std::string> inputs;
-                    int timeout_sec;
-                    
+                    int timeout_sec = conf.interactive_timeout;
+
                     if (c.contains("timeout"))
                         timeout_sec = c.value("timeout", conf.interactive_timeout);
-                    else
-                        timeout_sec = conf.interactive_timeout;
-                    
+
                     if (c.contains("inputs") && c["inputs"].is_array())
                         for (const auto &inp : c["inputs"])
                             inputs.push_back(inp.get<std::string>());
@@ -595,21 +691,16 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                         std::cout << CYAN << "[AGENT] Interactive mode: " << RESET << cmd << std::endl;
 
                     for (const auto &inp : inputs)
-                        std::cout << CYAN << "  ↳ input: " << RESET << inp << std::endl;
+                        std::cout << CYAN << "  -> input: " << RESET << inp << std::endl;
 
-                    output = exec_interactive(cmd, inputs, conf.interactive_timeout, conf.debug);
+                    output = exec_interactive(cmd, inputs, timeout_sec, conf.debug);
                 }
                 else
                     output = exec_command(cmd, conf);
 
-                std::string suffix;
-                
-                if (output.size() > 300)
-                    suffix = "...";
-                else
-                    suffix = "";
-
-                std::cout << CYAN << "  → " << RESET << output.substr(0, 300) << suffix << std::endl;
+                std::string suffix = (output.size() > 300) ? "..." : "";
+                std::cout << CYAN << "  -> " << RESET
+                          << output.substr(0, 300) << suffix << std::endl;
                 iter_results += "$ " + cmd + "\n" + output + "\n\n";
             }
         }
@@ -622,9 +713,9 @@ void run_agent(const std::vector<std::string> &, s_config conf)
         if (done || iter == conf.max_iter - 1)
         {
             agent_log("Finalizing.", conf.debug);
+
             std::string report_path = "reports/agent_report.md";
             std::ofstream of(report_path);
-            
             if (of.is_open())
             {
                 if (!report.empty())
@@ -633,17 +724,19 @@ void run_agent(const std::vector<std::string> &, s_config conf)
                     of << "# Agent Report\n\n" << history;
             }
             of.close();
-            
+
             std::cout << "\n" << BOLD << "Final Results:" << RESET << std::endl;
-            
+
             if (done)
-                std::cout << GREEN << "[OK]   " << RESET << "Agent report (reports/agent_report.md)" << std::endl;
+                std::cout << GREEN << "[OK]   " << RESET
+                          << "Agent report (reports/agent_report.md)" << std::endl;
             else
-                std::cout << YELLOW << "[TIMEOUT] " << RESET << "Max iterations reached. Saved report." << std::endl;
-            
+                std::cout << YELLOW << "[TIMEOUT] " << RESET
+                          << "Max iterations reached. Saved report." << std::endl;
+
             if (conf.format == "pdf")
                 save_as_pdf("reports/agent_report.md", conf.debug);
-            
+
             return;
         }
     }
