@@ -142,8 +142,6 @@ static std::string sanitize_output(const std::string& str)
     return clean;
 }
 
-// Escape control characters inside JSON string values so the parser
-// does not choke on raw newlines / tabs that the LLM sometimes emits.
 static std::string fix_json_strings(const std::string &raw)
 {
     std::string out;
@@ -178,13 +176,11 @@ static std::string fix_json_strings(const std::string &raw)
 
         if (in_string)
         {
-            // These characters are forbidden unescaped inside JSON strings
             if (c == '\n')      { out += "\\n";  continue; }
             if (c == '\r')      { out += "\\r";  continue; }
             if (c == '\t')      { out += "\\t";  continue; }
             if ((unsigned char)c < 0x20)
             {
-                // Other control characters: emit \uXXXX
                 char esc[8];
                 snprintf(esc, sizeof(esc), "\\u%04x", (unsigned char)c);
                 out += esc;
@@ -466,7 +462,6 @@ void run_agent(const std::vector<std::string> &, s_config conf)
 
         agent_log("Raw response preview: " + raw.substr(0, 300), conf.debug);
 
-        // Extract the JSON object from the raw response
         std::string clean_raw = raw;
         size_t js = clean_raw.find('{');
         size_t je = clean_raw.rfind('}');
@@ -474,8 +469,6 @@ void run_agent(const std::vector<std::string> &, s_config conf)
         if (js != std::string::npos && je != std::string::npos)
             clean_raw = clean_raw.substr(js, je - js + 1);
 
-        // Fix raw newlines / control chars inside JSON string values
-        // before handing to the parser — the LLM sometimes emits them.
         clean_raw = fix_json_strings(clean_raw);
 
         json j;
