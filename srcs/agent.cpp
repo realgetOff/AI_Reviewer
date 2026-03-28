@@ -142,53 +142,88 @@ static std::string sanitize_output(const std::string& str)
     return clean;
 }
 
+static std::string strip_markdown_fence(const std::string &raw)
+{
+    std::string s = raw;
+
+    for (const auto &tag : {"```json", "```"})
+    {
+        size_t pos = s.find(tag);
+        if (pos != std::string::npos)
+        {
+            size_t brace = s.find('{');
+            if (brace == std::string::npos || pos < brace)
+            {
+                s.erase(pos, strlen(tag));
+                while (pos < s.size() && (s[pos] == ' ' || s[pos] == '\n' || s[pos] == '\r'))
+                    s.erase(pos, 1);
+                break;
+            }
+        }
+    }
+
+    size_t last = s.rfind("```");
+    if (last != std::string::npos && last > s.rfind('}'))
+        s.erase(last);
+
+    return s;
+}
+
 static std::string fix_json_strings(const std::string &raw)
 {
     std::string out;
-    out.reserve(raw.size());
+    out.reserve(raw.size() + 64);
     bool in_string = false;
-    bool escaped   = false;
 
     for (size_t i = 0; i < raw.size(); ++i)
     {
-        char c = raw[i];
+        unsigned char c = (unsigned char)raw[i];
 
-        if (escaped)
+        if (!in_string)
         {
-            out += c;
-            escaped = false;
+            if (c == '"')
+                in_string = true;
+            out += (char)c;
             continue;
         }
 
-        if (c == '\\' && in_string)
+        if (c == '\\')
         {
-            out += c;
-            escaped = true;
+            unsigned char next = (i + 1 < raw.size()) ? (unsigned char)raw[i + 1] : 0;
+
+            if (next == '"' || next == '\\' || next == '/'  ||
+                next == 'b' || next == 'f'  || next == 'n'  ||
+                next == 'r' || next == 't'  || next == 'u')
+            {
+                out += (char)c;
+                out += (char)next;
+                i++;
+                continue;
+            }
+
+            out += "\\\\";
             continue;
         }
 
         if (c == '"')
         {
-            in_string = !in_string;
-            out += c;
+            in_string = false;
+            out += '"';
             continue;
         }
 
-        if (in_string)
+        if (c == '\n') { out += "\\n";  continue; }
+        if (c == '\r') { out += "\\r";  continue; }
+        if (c == '\t') { out += "\\t";  continue; }
+        if (c < 0x20)
         {
-            if (c == '\n')      { out += "\\n";  continue; }
-            if (c == '\r')      { out += "\\r";  continue; }
-            if (c == '\t')      { out += "\\t";  continue; }
-            if ((unsigned char)c < 0x20)
-            {
-                char esc[8];
-                snprintf(esc, sizeof(esc), "\\u%04x", (unsigned char)c);
-                out += esc;
-                continue;
-            }
+            char esc[8];
+            snprintf(esc, sizeof(esc), "\\u%04x", c);
+            out += esc;
+            continue;
         }
 
-        out += c;
+        out += (char)c;
     }
     return out;
 }
@@ -462,10 +497,10 @@ void run_agent(const std::vector<std::string> &, s_config conf)
 
         agent_log("Raw response preview: " + raw.substr(0, 300), conf.debug);
 
-        std::string clean_raw = raw;
+        std::string clean_raw = strip_markdown_fence(raw);
+
         size_t js = clean_raw.find('{');
         size_t je = clean_raw.rfind('}');
-        
         if (js != std::string::npos && je != std::string::npos)
             clean_raw = clean_raw.substr(js, je - js + 1);
 
