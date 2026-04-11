@@ -16,7 +16,7 @@ int	main(int argc, char **argv)
 {
 	signal(SIGPIPE, SIG_IGN);
 
-	s_config								conf = {false, false, false, false, "", "", "", "", "", "", "gemini", "", "md", 0, 5, 10};
+	s_config								conf = {false, false, false, false, "", "", "", "", "", "", "gemini", "", "md", 0, 0, 0};
 	std::vector<std::string>				files;
 	std::vector<std::string>				results;
 	std::vector<std::future<std::string>>	futures;
@@ -26,22 +26,8 @@ int	main(int argc, char **argv)
 	if (argc > 1)
 		if (check_commands(argc, argv) != 2)
 			return (0);
-	while ((opt = getopt(argc, argv, "t:i:I:agdhms:l:f:c:")) != -1)
+	while ((opt = getopt(argc, argv, "t:i:agdhms:l:f:c:")) != -1)
 	{
-		if (opt == 'I')
-		{
-    		if (!optarg)
-    		{
-    		    std::cerr << RED << "Error: -I requires a value" << RESET << std::endl;
-    		    return (1);
-    		}
-    		conf.interactive_timeout = std::atoi(optarg);
-    		if (conf.interactive_timeout <= 0)
-    		{
-        		std::cerr << RED << "Error: -I must be > 0" << RESET << std::endl;
-        		return (1);
-    		}
-		}
 		if (opt == 'h')
 			display_help();
 		if (opt == 'g')
@@ -58,9 +44,9 @@ int	main(int argc, char **argv)
 				return (1);
 			}
 			conf.max_iter = std::atoi(optarg);
-			if (conf.max_iter <= 0)
+			if (conf.max_iter < 0)
 			{
-				std::cerr << RED << "Error: -i must be > 0" << RESET << std::endl;
+				std::cerr << RED << "Error: -i must be >= 0 (0 = unlimited until done)" << RESET << std::endl;
 				return (1);
 			}
 		}
@@ -107,10 +93,17 @@ int	main(int argc, char **argv)
 		}
 	}
 	load_config(conf);
-	if (!conf.custom_prompt.empty())
+	if (!conf.custom_prompt.empty() && !conf.agent)
 		conf.prompt = conf.custom_prompt;
 	if (conf.agent)
 	{
+		if (optind < argc)
+		{
+			std::cerr << RED << "Error: agent mode (-a) does not accept paths or extra arguments."
+			          << RESET << std::endl;
+			return (1);
+		}
+		conf.timeout = 0;
 		mkdir("reports", 0777);
 		run_agent(files, conf);
 		return (0);

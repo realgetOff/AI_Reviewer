@@ -135,10 +135,20 @@ std::string call_ai(const std::string &code, const s_config &config)
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);
-	curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)config.timeout);
-	write_debug("[AI] timeout: " + std::to_string(config.timeout) + "s", config.debug);
+	if (config.timeout > 0)
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)config.timeout);
+	else
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
+	{
+		std::string tinfo;
+		if (config.timeout > 0)
+			tinfo = std::to_string(config.timeout) + "s";
+		else
+			tinfo = "none (agent)";
+		write_debug("[AI] timeout: " + tinfo, config.debug);
+	}
 
     CURLcode res = curl_easy_perform(curl);
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code_http);

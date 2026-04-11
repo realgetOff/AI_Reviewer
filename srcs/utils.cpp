@@ -30,10 +30,10 @@ void	display_help(void)
 	std::cout << "  -f <fmt>    Set default format (md, pdf) in config" << std::endl;
 	std::cout << "  -s <style>  Set review style (minimal, security)" << std::endl;
 	std::cout << "  -l <lang>   Set output language (en, fr)" << std::endl;
-	std::cout << "  -c <prompt> Use custom prompt instead of config style" << std::endl;
-	std::cout << "  -t <sec>    Set request timeout in seconds (default: 30)" << std::endl;
-	std::cout << "  -I <sec>    Set interactive program timeout in seconds (default: 10)" << std::endl;
-	std::cout << "  -a          Enable agent mode" << std::endl;
+	std::cout << "  -c <prompt> Custom prompt (review mode only; not with -a)" << std::endl;
+	std::cout << "  -t <sec>    Set request timeout in seconds (default: 30; ignored with -a)" << std::endl;
+	std::cout << "  -i <n>      Agent: max iterations (0 = unlimited until done; default: 0)" << std::endl;
+	std::cout << "  -a          Agent mode (no paths; API timeout unlimited; ESC / Ctrl+C)" << std::endl;
 	std::cout << "  -g          Analyze all files as one (global context mode)" << std::endl;
 	std::cout << "  -d          Enable debug mode (verbose logs)" << std::endl;
 	std::cout << "  -m          List all available AI models" << std::endl;
@@ -44,7 +44,8 @@ void	display_help(void)
 	std::cout << "  air ." << std::endl;
 	std::cout << "  air -f pdf" << std::endl;
 	std::cout << "  air -s security -l fr srcs/*" << std::endl;
-	std::cout << "  air -c \"try to break my code by doing edges cases\" -a" << std::endl;
+	std::cout << "  air -a" << std::endl;
+	std::cout << "  air -c \"try to break my code\" -a" << std::endl;
 	std::cout << std::endl;
 	exit(0);
 }

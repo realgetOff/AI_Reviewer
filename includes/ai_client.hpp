@@ -13,7 +13,7 @@
 #ifndef AI_CLIENT_HPP
 #define AI_CLIENT_HPP
 
-#define CURRENT_VERSION "v1.3.2"
+#define CURRENT_VERSION "v1.4.0"
 #define OPTIMAL_HISTORY_SIZE 8000
 
 #define RESET   "\033[0m"
@@ -24,6 +24,9 @@
 #define BLUE    "\033[34m"
 #define MAGENTA "\033[35m"
 #define CYAN    "\033[36m"
+#define DIM     "\033[2m"
+#define ORANGE  "\033[38;5;208m"
+#define TEAL    "\033[38;5;37m"
 
 #include <sys/wait.h>
 #include <nlohmann/json.hpp>
