@@ -101,6 +101,8 @@ static std::string	build_payload(const s_config &conf, const std::string &code)
 		return (json{{"model", conf.model_name}, {"messages", {{{"role", "user"}, {"content", p}}}}}.dump());
 	if (conf.model_type == "claude")
 		return (json{{"model", conf.model_name}, {"max_tokens", 1024}, {"messages", {{{"role", "user"}, {"content", p}}}}}.dump());
+	if (conf.model_type == "ollama")
+		return (json{{"model", conf.model_name}, {"prompt", p}, {"stream", false}}.dump());
 	return ("");
 }
 
@@ -130,6 +132,12 @@ std::string call_ai(const std::string &code, const s_config &config)
 
     if (config.model_type == "gemini")
         url += "?key=" + config.api_key;
+    else if (config.model_type == "ollama")
+    {
+        if (!url.empty() && url.back() == '/') url.pop_back();
+        if (url.find("/api/generate") == std::string::npos && url.find("/api/chat") == std::string::npos)
+            url += "/api/generate";
+    }
 
     std::string payload = build_payload(config, code);
     write_debug("[AI] payload size: " + std::to_string(payload.size()), config.debug);
@@ -191,6 +199,13 @@ std::string call_ai(const std::string &code, const s_config &config)
             return (j["candidates"][0]["content"]["parts"][0]["text"]);
         if (config.model_type == "claude")
             return (j["content"][0]["text"]);
+        if (config.model_type == "ollama")
+        {
+            if (j.contains("response"))
+                return (j["response"]);
+            if (j.contains("message") && j["message"].contains("content"))
+                return (j["message"]["content"]);
+        }
         return (j["choices"][0]["message"]["content"]);
     }
     catch (const std::exception& e)
