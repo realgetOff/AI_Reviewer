@@ -38,6 +38,13 @@ void	list_provider_models(const s_config &config)
 		url = "https://api.openai.com/v1/models";
 	else if (config.model_type == "claude")
 		url = "https://api.anthropic.com/v1/models";
+	else if (config.model_type == "ollama")
+	{
+		url = config.api_url;
+		if (!url.empty() && url.back() == '/') url.pop_back();
+		if (url.find("/api/tags") == std::string::npos)
+			url += "/api/tags";
+	}
 	else
 		return ;
 	if (config.model_type == "openai" || config.model_type == "mistral")
@@ -59,6 +66,11 @@ void	list_provider_models(const s_config &config)
 		{
 			auto j = json::parse(resp);
 			if (config.model_type == "gemini")
+			{
+				for (auto& m : j["models"])
+					std::cout << " - " << m["name"].get<std::string>() << std::endl;
+			}
+			else if (config.model_type == "ollama")
 			{
 				for (auto& m : j["models"])
 					std::cout << " - " << m["name"].get<std::string>() << std::endl;
